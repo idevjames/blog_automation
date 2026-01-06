@@ -1,0 +1,8 @@
+# Python virtual environment
+system/venv/
+
+# Naver login profile/session
+system/naver_profile/
+
+# OS generated files
+.DS_Store
