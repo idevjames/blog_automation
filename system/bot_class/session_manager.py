@@ -3,14 +3,13 @@ import sys
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-# 상위 폴더의 모듈을 가져오기 위한 설정
+# 상위 폴더 모듈 가져오기
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 import config
 from utils import smart_sleep
 
 class NaverSessionManager:
     def __init__(self):
-        # 루트 폴더에 있는 naver_profile을 가리킴
         self.base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
         self.profile_path = os.path.join(self.base_dir, "naver_profile")
         self.driver = self._init_driver()
@@ -19,8 +18,13 @@ class NaverSessionManager:
         options = Options()
         options.add_argument(f"user-data-dir={self.profile_path}")
         options.add_argument('--disable-blink-features=AutomationControlled')
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"]) # 로깅 제외
         options.add_experimental_option('useAutomationExtension', False)
+        
+        # [수정] 불필요한 시스템 로그 숨기기
+        options.add_argument("--log-level=3") 
+        options.add_argument("--silent")
+        
         options.add_argument(f'user-agent={config.USER_AGENT}')
 
         driver = webdriver.Chrome(options=options)

@@ -24,9 +24,6 @@ def smart_click(driver, element):
         random_y = random.randint(int(-h/ratio), int(h/ratio))
 
         actions.move_to_element_with_offset(element, random_x, random_y).click().perform()
-        print(f"   (🎯 물리 클릭 반영: x_offset={random_x}, y_offset={random_y})")
         return True
     except Exception as e:
-        print(f"   (⚠️ 물리 클릭 실패, JS로 대체 시도: {e})")
-        driver.execute_script("arguments[0].click();", element)
         return False
