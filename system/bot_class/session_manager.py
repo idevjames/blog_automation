@@ -32,7 +32,7 @@ class NaverSessionManager:
         options.add_argument(f'user-agent={config.USER_AGENT}')
         
         # 창 크기 최대화 (요소 가림 방지)
-        options.add_argument("--start-maximized")
+        options.add_argument("--window-size=1024,768")
 
         driver = webdriver.Chrome(options=options)
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
