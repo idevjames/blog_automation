@@ -208,9 +208,15 @@ class BlogAddNeighbor:
             try:
                 msg_input = self.driver.find_element(By.CSS_SELECTOR, config.SELECTORS["popup_message_input"])
                 msg_input.clear()
+                
+                # 메시지 선택 및 변수 저장
                 rand_msg = random.choice(config.NEIGHBOR_CONFIG["messages"])
                 msg_input.send_keys(rand_msg)
-                smart_sleep(config.DELAY_RANGE.get("popup_typing", (0.5, 1.0)))
+                
+                # 선택된 메시지 바로 출력
+                print(f" > 💬 보낼 메시지: {rand_msg}") 
+                
+                smart_sleep(config.DELAY_RANGE.get("popup_typing", (0.2, 0.5)))
             except:
                 print("   [실패] 메시지 입력창을 찾을 수 없습니다.")
                 return False
