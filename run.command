@@ -16,25 +16,19 @@ if [ ! -d "system" ]; then
     exit 1
 fi
 
-# 3. 가상환경 확인 및 생성
+# 3. 가상환경 확인 및 자동 설치 (system 폴더 내부에 생성)
 if [ ! -d "system/venv" ]; then
-    echo "📦 가상환경 폴더가 없어서 새로 만듭니다..."
+    echo "📦 초기 설정: 가상환경을 설치합니다..."
     python3 -m venv system/venv
+    source system/venv/bin/activate
+    pip install --upgrade pip
+    pip install selenium requests
+    echo "✅ 설치 완료."
+else
+    source system/venv/bin/activate
 fi
 
-# 4. 가상환경 활성화
-source system/venv/bin/activate
-
-# 5. 필수 라이브러리 설치/업데이트
-# (pip 대신 python3 -m pip 사용 -> 오류 해결 포인트)
-echo "📦 라이브러리를 확인하고 설치합니다..."
-python3 -m pip install --upgrade pip
-python3 -m pip install selenium webdriver-manager requests
-
-echo "✅ 준비 완료."
-echo
-
-# 6. 프로그램 실행
+# 4. 프로그램 실행
 # PYTHONPATH를 현재 폴더(루트)로 잡아줘서 system 내부에서 상위 폴더 파일을 인식하게 함
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 

@@ -26,4 +26,5 @@ def smart_click(driver, element):
         actions.move_to_element_with_offset(element, random_x, random_y).click().perform()
         return True
     except Exception as e:
+        print(f"   (⚠️ 물리 클릭 실패, JS로 대체 시도: {e})")
         return False

@@ -2,11 +2,8 @@
 # [사용자 설정 파일]
 # 이 파일을 메모장으로 열어서 값을 수정하고 저장하세요.
 
-# 1. 서로이웃 탐색 주제  (directoryNo=??)
-## 9 : 엔터테인먼트/예술 > 드라마
-## 10 : 엔터테인먼트/예술 > 방송
-## 12 : 엔터테인먼트/예술 > 스타/연예인
-TARGET_DIRECTORY = 12
+# 1. 서로이웃 탐색 주제 (12: 엔터/예술, 9: 드라마, 10: 방송)
+TARGET_DIRECTORY = 12 
 
 # 2. 서로이웃 신청 메시지 목록
 NEIGHBOR_MESSAGES = [
@@ -80,6 +77,6 @@ CUSTOM_DELAYS = {
     "popup_submit": (1.0, 2.0)
 }
 
-# [4] 기본 목표 설정값
-DEFAULT_LIKE_COUNT = 10       # 엔터만 쳤을 때 공감할 기본 개수
-DEFAULT_FAILURE_COUNT = 3     # 연속으로 이만큼 실패하면 "뭔가 이상하다" 판단하고 멈춤
+# [4] 실패 기준 설정 (연속 실패 시 중단)
+DEFAULT_LIKE_FAILURE_COUNT = 5        # 이웃 공감: 5회 연속 실패 시 중단
+DEFAULT_ADD_NEIGHBOR_FAILURE_COUNT = 5 # 서로이웃 추가: 5회 연속 실패 시 중단
