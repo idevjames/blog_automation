@@ -29,6 +29,12 @@ DELAY_RANGE = user_settings.get("CUSTOM_DELAYS", {})
 DEFAULT_LIKE_FAILURE_COUNT = user_settings.get("DEFAULT_LIKE_FAILURE_COUNT", 5)
 DEFAULT_ADD_NEIGHBOR_FAILURE_COUNT = user_settings.get("DEFAULT_ADD_NEIGHBOR_FAILURE_COUNT", 5)
 
+# [신규] 서로이웃 신청 조건 설정 로드
+NEIGHBOR_CONDITION = {
+    "max_likes": user_settings.get("NEIGHBOR_CONDITION_MAX_LIKES", 100),
+    "max_comments": user_settings.get("NEIGHBOR_CONDITION_MAX_COMMENTS", 10)
+}
+
 # -----------------------------------------------------------
 # [네이버 블로그 주제 분류 데이터]
 # -----------------------------------------------------------
@@ -93,5 +99,18 @@ SELECTORS = {
     
     # [신규] 성공/실패 판독용 선택자
     "popup_success_text": "p.txt_desc, .guide_message, .txt_result", # 완료 메시지 텍스트 영역
-    "popup_close_btn": "a.button_close, button.btn_close"            # 닫기 버튼
+    "popup_close_btn": "a.button_close, button.btn_close",           # 닫기 버튼
+
+    # [신규] 게시글 분석용 선택자 (닉네임, 공감수, 댓글수)
+    # 네이버 블로그 구조상 여러 케이스를 커버하도록 설정
+    "post_nickname": "#nickNameArea, .nick, .blog_nickname, span.nick", 
+    "post_like_count": "em.u_cnt, .u_likeit_list_count", 
+    "post_comment_count": "#commentCount, .btn_comment em, .area_comment em",
+    
+    # [수정/추가] 리스트 화면 분석용 선택자
+    "theme_post_container": "div.info_post",      # 글 목록의 개별 박스(컨테이너)
+    "post_list_nickname": ".name_author",         # 작성자 닉네임
+    "post_list_like_count": ".like em",           # 공감 수 숫자
+    "post_list_comment_count": ".reply em",       # 댓글 수 숫자
+    "theme_post_links": "a.desc_inner",           # (기존 유지) 클릭할 글 제목 링크
 }

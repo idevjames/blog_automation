@@ -14,15 +14,18 @@ class BlogLikesNeighbor:
         self.driver = driver
         self.wait = WebDriverWait(self.driver, 15)
 
-    def run(self, target_count):
+    # [수정] start_page 인자 추가
+    def run(self, target_count, start_page=1):
         """메인 실행 함수"""
-        if not self._go_to_blog_main():
+        # [수정] 시작 페이지로 바로 이동
+        if not self._go_to_blog_main(start_page):
             print("❌ 블로그 홈 진입 실패")
             return
 
-        print(f"\n[작업] 목표 공감 수: {target_count}개")
+        print(f"\n[작업] {start_page}페이지부터 시작하여 공감 {target_count}개를 목표로 합니다.")
+        
         clicked_total = 0
-        current_page = 1
+        current_page = start_page # [수정] 현재 페이지 설정
         fail_streak = 0 
 
         while clicked_total < target_count:
@@ -37,7 +40,15 @@ class BlogLikesNeighbor:
             
             if not buttons:
                 print(" > [알림] 공감 버튼을 찾을 수 없습니다.")
-                break
+                # 페이지 로딩 직후 버튼이 없는 경우, 다음 페이지로 넘어가보기
+                # (마지막 페이지인지 체크 로직은 버튼 유무로 간접 판단)
+                if fail_streak < 2: # 한두 번은 봐줌
+                     print(" > 페이지를 스킵하고 다음 페이지로 이동합니다.")
+                     current_page += 1
+                     self._move_next_page_direct(current_page)
+                     continue
+                else:
+                     break
 
             print(f" > 발견된 버튼: {len(buttons)}개")
 
@@ -56,7 +67,6 @@ class BlogLikesNeighbor:
                     smart_sleep(config.DELAY_RANGE["between_actions"])
                 
                 elif result == "ALREADY":
-                    # [수정] 이미 공감한 경우 출력
                     print(" > [패스] 이미 공감한 글입니다.")
                     continue
                 
@@ -67,7 +77,8 @@ class BlogLikesNeighbor:
             # 페이지 이동 로직
             if clicked_total < target_count and fail_streak < config.DEFAULT_LIKE_FAILURE_COUNT:
                 current_page += 1
-                if not self._move_next_page(current_page):
+                # [수정] 기존 버튼 클릭 방식 대신 URL 이동 방식(direct) 사용 권장
+                if not self._move_next_page_direct(current_page):
                     print(" > 더 이상 페이지가 없습니다.")
                     break
             else:
@@ -75,9 +86,11 @@ class BlogLikesNeighbor:
         
         print(f"\n✅ 작업 종료. 총 {clicked_total}개 공감.")
 
-    def _go_to_blog_main(self):
+    # [수정] page_num을 받아 URL로 직접 이동
+    def _go_to_blog_main(self, page_num=1):
         try:
-            self.driver.get("https://section.blog.naver.com/BlogHome.naver")
+            url = f"https://section.blog.naver.com/BlogHome.naver?currentPage={page_num}"
+            self.driver.get(url)
             self.wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
             return True
         except:
@@ -85,19 +98,15 @@ class BlogLikesNeighbor:
 
     def _process_like_button(self, btn):
         try:
-            # 화면 중앙으로 스크롤
             self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
             smart_sleep(config.DELAY_RANGE.get("before_click", (0.5, 0.5)))
 
-            # 이미 눌렸는지 확인 (aria-pressed 속성 활용)
             if btn.get_attribute("aria-pressed") == "true":
                 return "ALREADY"
 
-            # 물리 클릭 시도
             if not smart_click(self.driver, btn):
                 return "FAIL"
             
-            # 클릭 결과 검증 (약 1.5초간)
             for _ in range(3):
                 smart_sleep(config.DELAY_RANGE.get("verify_interval", (0.5, 0.5)))
                 if btn.get_attribute("aria-pressed") == "true":
@@ -107,14 +116,12 @@ class BlogLikesNeighbor:
         except Exception as e:
             return "ERROR"
 
-    def _move_next_page(self, page_num):
+    # [수정] URL 파라미터로 페이지 이동 (안정성 향상)
+    def _move_next_page_direct(self, page_num):
         try:
-            pages = self.driver.find_elements(By.CSS_SELECTOR, config.SELECTORS["pagination"])
-            for p in pages:
-                if p.text.strip() == str(page_num):
-                    smart_click(self.driver, p)
-                    smart_sleep(config.DELAY_RANGE["page_nav"], f"{page_num}페이지 이동")
-                    return True
-            return False
+            url = f"https://section.blog.naver.com/BlogHome.naver?currentPage={page_num}"
+            self.driver.get(url)
+            smart_sleep(config.DELAY_RANGE["page_nav"], f"{page_num}페이지 이동")
+            return True
         except:
             return False

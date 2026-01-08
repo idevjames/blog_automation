@@ -38,7 +38,7 @@ def get_user_input_number(prompt_text):
         print("❌ 숫자를 정확히 입력해주세요. (1 이상의 정수, 뒤로가기는 b)")
 
 def main():
-    print("🤖 네이버 블로그 자동화 봇 (v1.0)")
+    print("🤖 네이버 블로그 자동화 봇 (v1.1 - 페이지 지정 기능 추가)")
     
     session = NaverSessionManager()
     if not session.ensure_login():
@@ -60,10 +60,13 @@ def main():
         # [메뉴 1] 이웃 새글 공감
         if choice == '1':
             count = get_user_input_number("몇 개의 글에 공감할까요? (뒤로가기: b): ")
-            if count == 'BACK':
-                continue # 메인 메뉴로 복귀
+            if count == 'BACK': continue
+            
+            # [추가] 시작 페이지 입력
+            start_page = get_user_input_number("몇 페이지부터 탐색할까요? (처음이면 1): ")
+            if start_page == 'BACK': continue
                 
-            liker_bot.run(count)
+            liker_bot.run(count, start_page)
 
         # [메뉴 2] 서로이웃 신청
         elif choice == '2':
@@ -73,13 +76,13 @@ def main():
                 main_cat = input("대분류 번호를 입력하세요 (뒤로가기: b): ").strip()
                 
                 if main_cat.lower() == 'b':
-                    break # <Loop 1> 탈출 -> 메인 메뉴로
+                    break # <Loop 1> 탈출
                 
                 if main_cat.isdigit() and int(main_cat) in config.THEME_CATEGORIES:
                     main_cat_id = int(main_cat)
                     
                     # <Loop 2> 상세 주제 선택 반복 구간
-                    should_break_loop1 = False # 작업 완료 시 대분류 루프까지 깰 플래그
+                    should_break_loop1 = False 
                     
                     while True:
                         if not print_sub_categories(main_cat_id):
@@ -90,30 +93,31 @@ def main():
                         sub_cat = input("상세 주제의 번호(대괄호 안 숫자)를 입력하세요 (뒤로가기: b): ").strip()
 
                         if sub_cat.lower() == 'b':
-                            break # <Loop 2> 탈출 -> 대분류 선택으로 돌아감
+                            break # <Loop 2> 탈출
                         
                         if sub_cat.isdigit() and int(sub_cat) in target_sub_dict:
                             dir_no = int(sub_cat)
                             sub_name = target_sub_dict[dir_no]
                             print(f"👉 선택된 주제: 대분류[{main_cat_id}] - {sub_name}({dir_no})")
                             
-                            # [마지막 단계] 개수 입력
+                            # 개수 입력
                             target_count = get_user_input_number("몇 명에게 신청할까요? (뒤로가기: b): ")
-                            if target_count == 'BACK':
-                                continue # <Loop 2>의 시작(상세 주제 선택)으로 돌아감
+                            if target_count == 'BACK': continue
                             
-                            # 실제 봇 실행
-                            adder_bot.run(main_cat_id, dir_no, target_count)
+                            # [추가] 시작 페이지 입력
+                            start_page = get_user_input_number("몇 페이지부터 탐색할까요? (처음이면 1): ")
+                            if start_page == 'BACK': continue
                             
-                            # 실행이 끝났으면 메인 메뉴로 나가기 위해 플래그 설정
+                            # 실제 봇 실행 (인자 추가됨)
+                            adder_bot.run(main_cat_id, dir_no, target_count, start_page)
+                            
                             should_break_loop1 = True 
-                            break # <Loop 2> 탈출
+                            break 
                         else:
                             print("❌ 올바른 상세 번호가 아닙니다.")
                     
-                    # 작업 완료 후 메인 메뉴로 가기 위한 체크
                     if should_break_loop1:
-                        break # <Loop 1> 탈출 -> 메인 메뉴로
+                        break 
                         
                 else:
                     print("❌ 올바른 대분류 번호가 아닙니다.")
@@ -123,7 +127,6 @@ def main():
             break
             
         elif choice == 'b':
-             # 메인에서 b를 누르면 그냥 루프 다시 돔 (아무 일도 안 일어남)
              pass
         
     session.driver.quit()
