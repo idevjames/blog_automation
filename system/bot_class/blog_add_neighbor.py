@@ -226,8 +226,10 @@ class BlogAddNeighbor:
         except:
             return 0
 
+    # [수정] 결과 처리 로직 개선: 공감/댓글 실패가 서이추 성공 결과에 영향을 주지 않도록 변경
     def _process_one_blog(self, link_element, main_window):
         try:
+            # 링크 클릭 및 새 창 전환
             smart_click(self.driver, link_element)
             smart_sleep(config.DELAY_RANGE["window_switch"])
             
@@ -236,23 +238,35 @@ class BlogAddNeighbor:
             
             self.driver.switch_to.window(self.driver.window_handles[-1])
             
-            # 이웃추가 흐름 실행
+            # 1. 서로이웃 신청 흐름 실행
             result_status = self._try_add_neighbor_flow()
             
-            # 메인 창이 아니면 닫기
+            # 2. 서이추 성공 시에만 공감/댓글 시도 (실패해도 서이추 결과는 유지)
+            if result_status == "SUCCESS":
+                try:
+                    self._add_like_and_comment()
+                except Exception as e:
+                    print(f"   > [댓글 오류 무시] {e}")
+            
+            # 3. 창 닫기 및 복귀 (여기서 에러나도 result_status는 반환하도록 구조 변경)
             try:
                 if self.driver.current_window_handle != main_window:
                     self.driver.close()
-            except: pass
+            except:
+                pass
 
             self.driver.switch_to.window(main_window)
             return result_status
 
         except Exception as e:
+            print(f"   > [치명적 오류] {e}")
+            # 창 닫기 시도
             try:
-                if len(self.driver.window_handles) > 1: self.driver.close()
+                if len(self.driver.window_handles) > 1:
+                    self.driver.close()
                 self.driver.switch_to.window(main_window)
-            except: pass
+            except:
+                pass
             return "FAIL"
 
     def _try_add_neighbor_flow(self):
@@ -393,12 +407,27 @@ class BlogAddNeighbor:
                         smart_click(self.driver, btn)
                         clicked = True
                         smart_sleep(config.DELAY_RANGE.get("popup_submit", (1.0, 1.5)))
+
+                        # 알림창으로 스위치
+                        alert = self.driver.switch_to.alert
+                        alert_text = alert.text
+                        
+                        # 작성하신 제한 확인 함수 호출
+                        if self._check_limit_reached(alert_text):
+                            alert.accept() # 알림창 닫기
+                            return "LIMIT_REACHED" # [중요] 제한 걸림 신호 반환
+                        
+                        # 제한 메시지가 아닌 다른 알림창이라면 (예: 단순 오류 등)
+                        print(f"   > [알림] 팝업 메시지: {alert_text}")
+                        alert.accept()
+
                         break
             except: pass
             
             if not clicked: 
                 print("   > [실패] 전송 버튼을 누르지 못했습니다.")
                 return "FAIL"
+
 
             # [Step 5] 최종 확인
             if "신청" in self.driver.page_source:
@@ -417,3 +446,85 @@ class BlogAddNeighbor:
                 self.driver.switch_to.frame("mainFrame")
                 return self.driver.find_element(By.CSS_SELECTOR, selector)
             except: return None
+    
+    def _add_like_and_comment(self):
+        """플로팅 바 활성화를 위한 스크롤 후 공감/댓글 일괄 처리"""
+        print("   > [작업] 공감 및 댓글 작성을 시작합니다.")
+        
+        try:
+            # 1. 방(mainFrame) 입장
+            self.driver.switch_to.default_content()
+            WebDriverWait(self.driver, 5).until(EC.frame_to_be_available_and_switch_to_it((By.ID, "mainFrame")))
+            
+            # 2. 플로팅 바 활성화를 위한 실제 스크롤 수행
+            print("   > (화면 스크롤 중...)")
+            scroll_ratio = config.DELAY_RANGE.get("post_scroll_ratio", 0.8)
+            self.driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight * {scroll_ratio});")
+            smart_sleep(config.DELAY_RANGE.get("floating_wait", (1.5, 2.5)), "플로팅 바 활성화 대기")
+
+            # 3. 버튼 영역 컨테이너 찾기
+            try:
+                container_sel = config.SELECTORS["floating_container"]
+                WebDriverWait(self.driver, 5).until(EC.visibility_of_element_located((By.CSS_SELECTOR, container_sel)))
+                container = self.driver.find_element(By.CSS_SELECTOR, container_sel)
+            except:
+                print("   > [알림] 플로팅 바가 나타나지 않아 본문 하단 영역을 탐색합니다.")
+                container = self.driver.find_element(By.CSS_SELECTOR, config.SELECTORS["static_container"])
+
+            # --- [STEP A] 공감하기 ---
+            try:
+                like_btn = container.find_element(By.CSS_SELECTOR, config.SELECTORS["like_button_face"])
+                btn_class = like_btn.get_attribute("class") or ""
+                
+                if "off" in btn_class.split():
+                    smart_sleep(config.DELAY_RANGE.get("before_click", (0.5, 0.8)))
+                    smart_click(self.driver, like_btn)
+                    print("   > 👍 공감 완료")
+                    smart_sleep(config.DELAY_RANGE.get("between_actions", (0.8, 1.2)))
+                else:
+                    print("   > [패스] 이미 공감함")
+            except Exception as e:
+                print(f"   > [공감 실패] {e}")
+
+            # --- [STEP B] 댓글 달기 ---
+            try:
+                comment_btn = container.find_element(By.CSS_SELECTOR, config.SELECTORS["post_view_comment_button"])
+                smart_click(self.driver, comment_btn)
+                
+                # 입력창 가시성 대기
+                input_sel = config.SELECTORS["comment_text_area"]
+                WebDriverWait(self.driver, 5).until(EC.visibility_of_element_located((By.CSS_SELECTOR, input_sel)))
+
+                # 가이드 문구 물리 클릭하여 치우기
+                try:
+                    guide = self.driver.find_element(By.CSS_SELECTOR, config.SELECTORS["comment_guide_text"])
+                    if guide.is_displayed():
+                        smart_click(self.driver, guide)
+                        smart_sleep(config.DELAY_RANGE.get("before_click", (0.5, 0.8)))
+                except: pass
+
+                # 실제 입력창 타이핑
+                comment_input = self.driver.find_element(By.CSS_SELECTOR, input_sel)
+                smart_click(self.driver, comment_input)
+                smart_sleep(config.DELAY_RANGE.get("before_click", (0.3, 0.5)))
+                
+                comment_msg = random.choice(config.COMMENT_MESSAGES)
+                comment_input.send_keys(comment_msg)
+                comment_input.send_keys(" ") 
+                
+                print(f"   > 💬 메시지 입력 완료")
+                smart_sleep(config.DELAY_RANGE.get("popup_typing", (0.8, 1.2)))
+
+                # [등록] 버튼 물리 클릭
+                submit_btn = self.driver.find_element(By.CSS_SELECTOR, config.SELECTORS["comment_submit_button"])
+                smart_click(self.driver, submit_btn)
+                print("   > ✅ 댓글 등록 완료")
+                smart_sleep(config.DELAY_RANGE.get("page_load", (1.5, 2.0)))
+
+            except Exception as e:
+                print(f"   > [댓글 실패] {e}")
+
+        except Exception as e:
+            print(f"   > [통합 작업 에러] {e}")
+        finally:
+            self.driver.switch_to.default_content()

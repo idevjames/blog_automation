@@ -76,7 +76,12 @@ DELAY_RANGE = {
     "popup_form_load": raw_delays.get("서로이웃신청_메시지입력창대기", (1.5, 2.0)),
     "popup_typing": raw_delays.get("서로이웃신청_메시지입력후대기", (0.2, 0.5)),
     "popup_submit": raw_delays.get("서로이웃신청_전송후대기", (1.0, 2.0)),
-    
+
+    # 서로이웃 완료 후 공감/댓글 기능 (blog_add_neighbor.py에서 사용)
+    "window_switch": raw_delays.get("서로이웃신청_공감댓글_스크롤대기", (0.5, 1.0)),
+    "popup_step_wait": raw_delays.get("서로이웃신청_공감댓글_댓글창대기", (1.5, 2.0)),
+    "popup_interaction": raw_delays.get("서로이웃신청_공감댓글_스크롤최대", 0.8),
+
     # 공통 설정
     "retry_wait": raw_delays.get("공통_재시도대기", (0.5, 1.0)),
     "click_offset_ratio": raw_delays.get("공통_클릭랜덤화", 3),
@@ -173,4 +178,11 @@ SELECTORS = {
     "post_list_like_count": ".like em",           # 공감 수 숫자
     "post_list_comment_count": ".reply em",       # 댓글 수 숫자
     "theme_post_links": "a.desc_inner",           # (기존 유지) 클릭할 글 제목 링크
+
+    # [통합 액션용]
+    "floating_container": "#floating_bottom .wrap_postcomment",
+    "static_container": ".wrap_postcomment",
+    "like_button_face": "a.u_likeit_button._face",
+    "comment_guide_text": ".u_cbox_guide",
+    "comment_text_area": ".u_cbox_text",
 }
