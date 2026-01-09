@@ -41,16 +41,5 @@
 - `cd `를 입력하고 한 칸 띄운 뒤, 프로그램 폴더를 터미널 창으로 드래그 앤 드롭 하거나 직접 경로를 입력합니다.
   ```bash
   # 예시: 바탕화면에 폴더가 있는 경우
-  cd Desktop/blog_automation-main
-1. 프로그램 실행 전, **settings.txt** 파일을 메모장으로 열어 환경을 설정하세요.
-   - **NEIGHBOR_MESSAGES**: 서로이웃 신청 시 보낼 랜덤 메시지 목록
-   - **CUSTOM_DELAYS**: 사람처럼 보이기 위한 행동별 대기 시간 (초 단위)
-   - **실패 기준 설정**:
-     - **DEFAULT_LIKE_FAILURE_COUNT**: 공감 시도 연속 실패 시 중단 기준 (기본 5회)
-     - **DEFAULT_ADD_NEIGHBOR_FAILURE_COUNT**: 서로이웃 신청 연속 실패 시 중단 기준 (기본 5회)
-
----
-
-## ⚙️ 설정 방법 (공통)
-  - **settings.txt** 파일에서 설명에 적힌 값을 수정하고 재실행하면 반영되어 처리됨
-  - ex. DEFAULT_ADD_NEIGHBOR_FAILURE_COUNT를 변경하면 10명이아니라 해당 숫자만큼 연속 실패 후 멈춤
+  > cd Desktop/blog_automation-main
+  > ./run.command
