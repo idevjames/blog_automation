@@ -5,12 +5,44 @@ import sys
 # 현재 파일의 위치를 기준으로 경로 설정
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
-settings_path = os.path.join(root_dir, 'settings.txt')
 
-user_settings = {}
+# 설정 파일 경로
+neighbor_message_path = os.path.join(root_dir, '서이추메세지관리.txt')
+comment_message_path = os.path.join(root_dir, '서이추댓글관리.txt')
+delay_config_path = os.path.join(root_dir, '랜덤딜레이관리.txt')
+condition_config_path = os.path.join(root_dir, '작업조건관리.txt')
+
+# 각 설정 파일에서 값 로드
+neighbor_settings = {}
+comment_settings = {}
+delay_settings = {}
+condition_settings = {}
+
+# 서로이웃 신청 메시지 로드
 try:
-    with open(settings_path, 'r', encoding='utf-8') as f:
-        exec(f.read(), {}, user_settings)
+    with open(neighbor_message_path, 'r', encoding='utf-8') as f:
+        exec(f.read(), {}, neighbor_settings)
+except Exception:
+    pass
+
+# 댓글 메시지 로드
+try:
+    with open(comment_message_path, 'r', encoding='utf-8') as f:
+        exec(f.read(), {}, comment_settings)
+except Exception:
+    pass
+
+# 랜덤 딜레이 설정 로드
+try:
+    with open(delay_config_path, 'r', encoding='utf-8') as f:
+        exec(f.read(), {}, delay_settings)
+except Exception:
+    pass
+
+# 작업 조건 및 실패 기준 설정 로드
+try:
+    with open(condition_config_path, 'r', encoding='utf-8') as f:
+        exec(f.read(), {}, condition_settings)
 except Exception:
     pass
 
@@ -18,21 +50,49 @@ except Exception:
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
 NEIGHBOR_CONFIG = {
-    "messages": user_settings.get("NEIGHBOR_MESSAGES", [])
+    "messages": neighbor_settings.get("NEIGHBOR_MESSAGES", [])
 }
 
 # [신규] 댓글 메시지 리스트
-COMMENT_MESSAGES = user_settings.get("COMMENT_MESSAGES", [])
+COMMENT_MESSAGES = comment_settings.get("COMMENT_MESSAGES", [])
 
-DELAY_RANGE = user_settings.get("CUSTOM_DELAYS", {})
+# 딜레이 설정 로드
+raw_delays = delay_settings.get("CUSTOM_DELAYS", {})
+
+# 사용자 친화적인 이름을 기존 코드와 호환되도록 매핑
+# 주의: page_load는 두 기능에서 모두 사용되므로, 각각의 설정을 우선 사용하고 없으면 기본값 사용
+DELAY_RANGE = {
+    # 게시글 공감 관련 (blog_likes_neighbor.py에서 사용)
+    "page_load": raw_delays.get("게시글공감_페이지로딩", raw_delays.get("서로이웃신청_페이지로딩", (1.0, 2.5))),
+    "before_click": raw_delays.get("게시글공감_클릭전대기", (0.1, 0.3)),
+    "between_actions": raw_delays.get("게시글공감_작업간대기", raw_delays.get("서로이웃신청_작업간대기", (0.2, 0.5))),
+    "verify_interval": raw_delays.get("게시글공감_확인대기", (0.3, 0.5)),
+    "page_nav": raw_delays.get("게시글공감_페이지이동", (1.0, 2.5)),
+    
+    # 서로이웃 신청 관련 (blog_add_neighbor.py에서 사용)
+    "window_switch": raw_delays.get("서로이웃신청_팝업대기", (1.0, 2.0)),
+    "popup_step_wait": raw_delays.get("서로이웃신청_팝업초기대기", (0.2, 0.5)),
+    "popup_interaction": raw_delays.get("서로이웃신청_팝업작업대기", (0.2, 0.5)),
+    "popup_form_load": raw_delays.get("서로이웃신청_메시지입력창대기", (1.5, 2.0)),
+    "popup_typing": raw_delays.get("서로이웃신청_메시지입력후대기", (0.2, 0.5)),
+    "popup_submit": raw_delays.get("서로이웃신청_전송후대기", (1.0, 2.0)),
+    
+    # 공통 설정
+    "retry_wait": raw_delays.get("공통_재시도대기", (0.5, 1.0)),
+    "click_offset_ratio": raw_delays.get("공통_클릭랜덤화", 3),
+}
+
+# 작업 조건 설정 로드
+raw_conditions = condition_settings.get("WORK_CONDITIONS", {})
+
 # [수정] 실패 기준 분리 (기본값 5)
-DEFAULT_LIKE_FAILURE_COUNT = user_settings.get("DEFAULT_LIKE_FAILURE_COUNT", 5)
-DEFAULT_ADD_NEIGHBOR_FAILURE_COUNT = user_settings.get("DEFAULT_ADD_NEIGHBOR_FAILURE_COUNT", 5)
+DEFAULT_LIKE_FAILURE_COUNT = raw_conditions.get("게시글공감_최대실패횟수", 5)
+DEFAULT_ADD_NEIGHBOR_FAILURE_COUNT = raw_conditions.get("서로이웃신청_최대실패횟수", 5)
 
 # [신규] 서로이웃 신청 조건 설정 로드
 NEIGHBOR_CONDITION = {
-    "max_likes": user_settings.get("NEIGHBOR_CONDITION_MAX_LIKES", 100),
-    "max_comments": user_settings.get("NEIGHBOR_CONDITION_MAX_COMMENTS", 10)
+    "max_likes": raw_conditions.get("서로이웃신청_최대공감수", 100),
+    "max_comments": raw_conditions.get("서로이웃신청_최대댓글수", 10)
 }
 
 # -----------------------------------------------------------

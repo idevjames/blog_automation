@@ -36,7 +36,8 @@ class BlogLikesNeighbor:
             print(f"\n📄 {current_page}페이지 탐색 중...")
             smart_sleep(config.DELAY_RANGE["page_load"], "데이터 로딩")
 
-            buttons = self.driver.find_elements(By.CSS_SELECTOR, config.SELECTORS["feed_like_buttons"])
+            selector = config.SELECTORS["feed_like_buttons"]
+            buttons = self.driver.find_elements(By.CSS_SELECTOR, selector)
             
             if not buttons:
                 print(" > [알림] 공감 버튼을 찾을 수 없습니다.")
@@ -67,6 +68,7 @@ class BlogLikesNeighbor:
                     smart_sleep(config.DELAY_RANGE["between_actions"])
                 
                 elif result == "ALREADY":
+                    # 진짜 이미 공감했던 글 (처음부터 aria-pressed가 true였던 경우)
                     print(" > [패스] 이미 공감한 글입니다.")
                     continue
                 
@@ -92,6 +94,17 @@ class BlogLikesNeighbor:
             url = f"https://section.blog.naver.com/BlogHome.naver?currentPage={page_num}"
             self.driver.get(url)
             self.wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+            
+            # 첫 페이지 로드 시 콘텐츠가 완전히 로드될 때까지 추가 대기
+            # 공감 버튼이 나타날 때까지 기다리거나, 최소 대기 시간 확보
+            try:
+                # 공감 버튼이 나타날 때까지 최대 5초 대기
+                selector = config.SELECTORS["feed_like_buttons"]
+                self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+            except:
+                # 버튼이 없어도 페이지는 로드된 것으로 간주 (추가 대기만)
+                smart_sleep((1.0, 2.0), "첫 페이지 콘텐츠 로딩 대기")
+            
             return True
         except:
             return False
@@ -101,15 +114,25 @@ class BlogLikesNeighbor:
             self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
             smart_sleep(config.DELAY_RANGE.get("before_click", (0.5, 0.5)))
 
-            if btn.get_attribute("aria-pressed") == "true":
+            # 클릭하기 전 상태 저장 (방금 공감한 것과 원래 공감했던 것 구별)
+            initial_state = btn.get_attribute("aria-pressed") == "true"
+            
+            # 진짜 이미 공감했던 글 (처음부터 true였던 경우)
+            if initial_state:
                 return "ALREADY"
 
+            # 공감을 누르기 전 상태가 false였으므로, 클릭 시도
             if not smart_click(self.driver, btn):
                 return "FAIL"
             
+            # 클릭 후 확인: 원래 false였는데 true가 되면 SUCCESS
+            # (이 경우는 방금 공감한 것이므로 로그 없이 처리됨)
             for _ in range(3):
                 smart_sleep(config.DELAY_RANGE.get("verify_interval", (0.5, 0.5)))
-                if btn.get_attribute("aria-pressed") == "true":
+                current_state = btn.get_attribute("aria-pressed") == "true"
+                if current_state:
+                    # 원래 false였고 지금 true가 되었으므로 방금 공감 성공
+                    # initial_state가 false였으므로 이건 방금 공감한 것임
                     return "SUCCESS"
             
             return "FAIL"
