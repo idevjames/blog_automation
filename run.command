@@ -4,7 +4,7 @@
 cd "$(dirname "$0")" || exit
 
 echo "============================================="
-echo " 🤖 네이버 블로그 봇 실행기"
+echo " 🤖 네이버 블로그 봇 실행기 (macOS 3.11)"
 echo "============================================="
 echo
 
@@ -16,28 +16,42 @@ if [ ! -d "system" ]; then
     exit 1
 fi
 
-# 3. 가상환경 확인 및 자동 설치 (system 폴더 내부에 생성)
+# 3. 가상환경 확인 및 자동 설치 (Python 3.11 기반)
 if [ ! -d "system/venv" ]; then
-    echo "📦 초기 설정: 가상환경을 설치합니다..."
+    echo "📦 초기 설정: Python 3.11 가상환경을 설치합니다..."
+    # PATH에 등록된 python3.11을 명시적으로 사용하여 가상환경 생성
     python3.11 -m venv system/venv
+    
+    if [ $? -ne 0 ]; then
+        echo "❌ 오류: Python 3.11 설치가 확인되지 않습니다."
+        echo "   brew install python@3.11 을 먼저 완료해주세요."
+        read -p "엔터를 누르면 종료합니다..."
+        exit 1
+    fi
+    
     source system/venv/bin/activate
     pip install --upgrade pip
-    pip install selenium requests
+    # PyQt6 라이브러리 추가 설치
+    pip install selenium requests PyQt6
     echo "✅ 설치 완료."
 else
     source system/venv/bin/activate
 fi
 
-# 4. 프로그램 실행
-# PYTHONPATH를 현재 폴더(루트)로 잡아줘서 system 내부에서 상위 폴더 파일을 인식하게 함
+# 4. 프로그램 실행 (PYTHONPATH 설정으로 모듈 경로 인식 해결)
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 
-if [ -f "system/main.py" ]; then
-    echo "🚀 봇을 실행합니다..."
+# GUI 메인 파일이 있는지 먼저 확인하고 실행
+if [ -f "system/gui_main.py" ]; then
+    echo "🚀 GUI 봇을 실행합니다..."
     echo "---------------------------------------------"
-    python3 system/main.py
+    python system/gui_main.py
+elif [ -f "system/main.py" ]; then
+    echo "🚀 터미널 봇을 실행합니다..."
+    echo "---------------------------------------------"
+    python system/main.py
 else
-    echo "❌ 오류: system/main.py 파일을 찾을 수 없습니다."
+    echo "❌ 오류: 실행할 파이썬 파일(gui_main.py 또는 main.py)을 찾을 수 없습니다."
 fi
 
 echo

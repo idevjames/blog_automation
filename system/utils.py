@@ -8,8 +8,23 @@ def smart_sleep(range_tuple, reason):
     """지정된 범위 내에서 랜덤하게 대기하며 사유를 출력 (reason 필수)"""
     min_sec, max_sec = range_tuple
     wait_time = random.uniform(min_sec, max_sec)
-    # 모든 대기 상황을 출력하도록 설정
-    print(f"   (⏳ {reason}: {wait_time:.2f}초 대기...)")
+    
+    # 제외하고 싶은 사유 리스트
+    exclude_reasons = [
+        "메시지 작성 후 검토 대기", 
+        "최종 신청 전송 완료 대기",
+        "공감/댓글 영역 노출을 위한 스크롤 대기",
+        "공감 클릭 전 망설임 대기",
+        "공감 완료 후 댓글 작성 전 휴식",
+        "댓글 입력창 가시성 대기",
+        "공감 버튼 클릭 전 실제 사람처럼 대기",
+        "공감 처리 결과가 서버에 반영되는지 확인 중"
+    ]
+    
+    # 사유가 있고, 제외 리스트에 없으면 출력
+    if reason and reason not in exclude_reasons:
+        print(f"   (⏳ {reason}: {wait_time:.2f}초 대기...)")
+
     time.sleep(wait_time)
 
 def smart_click(driver, element):

@@ -1,5 +1,6 @@
 # system/main.py
 import sys
+import os
 import config
 from bot_class.session_manager import NaverSessionManager
 from bot_class.blog_likes_neighbor import BlogLikesNeighbor
@@ -23,22 +24,16 @@ def print_sub_categories(cat_id):
     return True
 
 def get_user_input_number(prompt_text):
-    """
-    숫자 입력을 받되, 'b' 또는 'B' 입력 시 'BACK'을 반환
-    """
     while True:
         val = input(prompt_text).strip()
-        
-        # 뒤로가기 체크
         if val.lower() == 'b':
             return 'BACK'
-            
         if val.isdigit() and int(val) > 0:
             return int(val)
         print("❌ 숫자를 정확히 입력해주세요. (1 이상의 정수, 뒤로가기는 b)")
 
 def main():
-    print("🤖 네이버 블로그 자동화 봇 (v1.1 - 페이지 지정 기능 추가)")
+    print("🤖 네이버 블로그 자동화 봇 (v1.5 - 환경 분리 완료)")
     
     session = NaverSessionManager()
     if not session.ensure_login():
@@ -49,86 +44,55 @@ def main():
     adder_bot = BlogAddNeighbor(session.driver)
 
     while True:
-        print("\n" + "="*40)
-        print(" 1. 이웃 새글 공감하기")
-        print(" 2. 주제별 블로그 찾아 서로이웃 신청하기")
-        print(" q. 종료")
-        print("="*40)
-        
-        choice = input("선택 (뒤로가기는 b) > ").strip().lower()
-
-        # [메뉴 1] 이웃 새글 공감
-        if choice == '1':
-            count = get_user_input_number("몇 개의 글에 공감할까요? (뒤로가기: b): ")
-            if count == 'BACK': continue
+        try:
+            print("\n" + "="*40)
+            print(" 1. 이웃 새글 공감하기")
+            print(" 2. 주제별 블로그 찾아 서로이웃 신청하기")
+            print(" q. 종료")
+            print("="*40)
             
-            # [추가] 시작 페이지 입력
-            start_page = get_user_input_number("몇 페이지부터 탐색할까요? (처음이면 1): ")
-            if start_page == 'BACK': continue
-                
-            liker_bot.run(count, start_page)
+            choice = input("선택 (뒤로가기는 b) > ").strip().lower()
 
-        # [메뉴 2] 서로이웃 신청
-        elif choice == '2':
-            # <Loop 1> 대분류 선택 반복 구간
-            while True:
-                print_main_categories()
-                main_cat = input("대분류 번호를 입력하세요 (뒤로가기: b): ").strip()
-                
-                if main_cat.lower() == 'b':
-                    break # <Loop 1> 탈출
-                
-                if main_cat.isdigit() and int(main_cat) in config.THEME_CATEGORIES:
-                    main_cat_id = int(main_cat)
-                    
-                    # <Loop 2> 상세 주제 선택 반복 구간
-                    should_break_loop1 = False 
-                    
-                    while True:
-                        if not print_sub_categories(main_cat_id):
-                            print("❌ 카테고리 로드 실패")
-                            break
-                        
-                        target_sub_dict = config.THEME_CATEGORIES[main_cat_id]['sub']
-                        sub_cat = input("상세 주제의 번호(대괄호 안 숫자)를 입력하세요 (뒤로가기: b): ").strip()
+            if choice == '1':
+                count = get_user_input_number("몇 개의 글에 공감할까요? (뒤로가기: b): ")
+                if count == 'BACK': continue
+                start_page = get_user_input_number("몇 페이지부터 탐색할까요? (처음이면 1): ")
+                if start_page == 'BACK': continue
+                liker_bot.run(count, start_page)
 
-                        if sub_cat.lower() == 'b':
-                            break # <Loop 2> 탈출
-                        
-                        if sub_cat.isdigit() and int(sub_cat) in target_sub_dict:
-                            dir_no = int(sub_cat)
-                            sub_name = target_sub_dict[dir_no]
-                            print(f"👉 선택된 주제: 대분류[{main_cat_id}] - {sub_name}({dir_no})")
-                            
-                            # 개수 입력
-                            target_count = get_user_input_number("몇 명에게 신청할까요? (뒤로가기: b): ")
-                            if target_count == 'BACK': continue
-                            
-                            # [추가] 시작 페이지 입력
-                            start_page = get_user_input_number("몇 페이지부터 탐색할까요? (처음이면 1): ")
-                            if start_page == 'BACK': continue
-                            
-                            # 실제 봇 실행 (인자 추가됨)
-                            adder_bot.run(main_cat_id, dir_no, target_count, start_page)
-                            
-                            should_break_loop1 = True 
-                            break 
-                        else:
-                            print("❌ 올바른 상세 번호가 아닙니다.")
+            elif choice == '2':
+                while True:
+                    print_main_categories()
+                    main_cat = input("대분류 번호를 입력하세요 (뒤로가기: b): ").strip()
+                    if main_cat.lower() == 'b': break
                     
-                    if should_break_loop1:
-                        break 
+                    if main_cat.isdigit() and int(main_cat) in config.THEME_CATEGORIES:
+                        main_cat_id = int(main_cat)
+                        should_break_loop1 = False 
                         
-                else:
-                    print("❌ 올바른 대분류 번호가 아닙니다.")
-
-        elif choice == 'q':
-            print("👋 프로그램을 종료합니다.")
-            break
+                        while True:
+                            if not print_sub_categories(main_cat_id): break
+                            target_sub_dict = config.THEME_CATEGORIES[main_cat_id]['sub']
+                            sub_cat = input("상세 주제의 번호(대괄호 안 숫자)를 입력하세요 (뒤로가기: b): ").strip()
+                            if sub_cat.lower() == 'b': break
+                            
+                            if sub_cat.isdigit() and int(sub_cat) in target_sub_dict:
+                                dir_no = int(sub_cat)
+                                target_count = get_user_input_number("몇 명에게 신청할까요? (뒤로가기: b): ")
+                                if target_count == 'BACK': continue
+                                start_page = get_user_input_number("몇 페이지부터 탐색할까요? (처음이면 1): ")
+                                if start_page == 'BACK': continue
+                                
+                                adder_bot.run(main_cat_id, dir_no, target_count, start_page)
+                                should_break_loop1 = True 
+                                break 
+                        if should_break_loop1: break
+            elif choice == 'q':
+                break
+        except KeyboardInterrupt:
+            print("\n🏠 메인 메뉴로 돌아갑니다.")
+            continue
             
-        elif choice == 'b':
-             pass
-        
     session.driver.quit()
 
 if __name__ == "__main__":

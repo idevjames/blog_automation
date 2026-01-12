@@ -20,15 +20,15 @@ class BlogAddNeighbor:
     def run(self, active_directory_seq, directory_no, target_count, start_page=1):
         """메인 실행 함수"""
         self._print_start_info(active_directory_seq, directory_no, target_count, start_page)
-        max_likes, max_comments = self._load_conditions()
+        
+        # [수정] ADD_NEIGHBOR_CONFIG 참조
+        conf = config.ADD_NEIGHBOR_CONFIG
+        max_likes, max_comments = self._load_conditions(conf)
+        fail_limit = conf["conditions"].get("최대실패횟수", 10)
         
         current_success = 0
         consecutive_failures = 0
         page = start_page
-        
-        # [수정] ADD_NEIGHBOR_CONFIG 참조
-        conf = config.ADD_NEIGHBOR_CONFIG
-        fail_limit = conf["conditions"].get("최대실패횟수", 10)
         
         while current_success < target_count:
             if self._should_stop_due_to_failures(consecutive_failures, fail_limit):
@@ -73,10 +73,10 @@ class BlogAddNeighbor:
         print(f"\n🚀 주제 [대분류:{active_directory_seq} / 상세:{directory_no}]")
         print(f"🚀 {start_page}페이지부터 시작하여 {target_count}명 신청을 진행합니다.")
     
-    def _load_conditions(self):
+    def _load_conditions(self, conf):
         """작업 조건 로드"""
         # [수정] ADD_NEIGHBOR_CONFIG 참조
-        cond = config.ADD_NEIGHBOR_CONFIG["conditions"]
+        cond = conf["conditions"]
         max_l = cond.get("최대공감수제한", 100)
         max_c = cond.get("최대댓글수제한", 10)
         print(f"   (필터 조건: 공감 {max_l}개 이하 AND 댓글 {max_c}개 이하인 글만 방문)")
@@ -94,8 +94,8 @@ class BlogAddNeighbor:
         url = f"https://section.blog.naver.com/ThemePost.naver?directoryNo={directory_no}&activeDirectorySeq={active_directory_seq}&currentPage={page}"
         try:
             self.driver.get(url)
-            # [수정] reason 필수 기입 및 전용 딜레이 참조
-            smart_sleep(config.ADD_NEIGHBOR_CONFIG["delays"].get("목록페이지로딩", (1.0, 2.5)), f"{page}페이지 블로그 목록 로딩 대기")
+            # [수정] reason 필수 및 ADD_NEIGHBOR_CONFIG 참조
+            smart_sleep(config.ADD_NEIGHBOR_CONFIG["delays"].get("목록페이지로딩", (1.0, 2.5)), f"{page}페이지 주제별 목록 로딩 대기")
             return True
         except:
             print("❌ 페이지 로딩 실패")
@@ -185,15 +185,15 @@ class BlogAddNeighbor:
             current_success += 1
             consecutive_failures = 0
             print(f"   > 🎉 이웃 신청 완료!")
-            # [수정] reason 필수 및 전용 딜레이 참조
+            # [수정] reason 필수 및 ADD_NEIGHBOR_CONFIG 참조
             smart_sleep(conf_delay.get("블로그간대기", (0.2, 0.5)), "신청 성공 후 다음 블로그 방문 전 대기")
         elif result == "ALREADY":
             consecutive_failures = 0
         else:  # FAIL
             consecutive_failures += 1
             print(f"   > ⚠️ 실패 처리되었습니다.")
-            # [수정] reason 필수 및 전용 딜레이 참조
-            smart_sleep(conf_delay.get("재시도대기", (0.5, 1.0)), "실패 후 다시 시도 전 안정화 대기")
+            # [수정] reason 필수 및 ADD_NEIGHBOR_CONFIG 참조
+            smart_sleep(conf_delay.get("재시도대기", (0.5, 1.0)), "실패 후 안정화를 위한 재시도 대기")
         
         return current_success, consecutive_failures, False  # (success, failures, should_exit)
     
@@ -242,7 +242,7 @@ class BlogAddNeighbor:
         try:
             # 링크 클릭 및 새 창 전환
             smart_click(self.driver, link_element)
-            # [수정] reason 필수 및 전용 딜레이 참조
+            # [수정] reason 필수 및 ADD_NEIGHBOR_CONFIG 참조
             smart_sleep(conf_delay.get("팝업창대기", (1.0, 2.0)), "블로그 상세 페이지 로딩 대기")
             
             if len(self.driver.window_handles) == 1:
@@ -483,7 +483,7 @@ class BlogAddNeighbor:
             
             # 2. 플로팅 바 활성화를 위한 실제 스크롤 수행
             print("   > (화면 스크롤 중...)")
-            scroll_ratio = conf_delay.get("스크롤최대비율", 0.5)
+            scroll_ratio = conf_delay.get("스크롤최대비율", 0.8)
             self.driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight * {scroll_ratio});")
             # [수정] reason 필수 및 전용 딜레이 참조
             smart_sleep(conf_delay.get("스크롤대기", (0.5, 1.0)), "공감/댓글 영역 노출을 위한 스크롤 대기")
@@ -503,7 +503,7 @@ class BlogAddNeighbor:
                 btn_class = like_btn.get_attribute("class") or ""
                 
                 if "off" in btn_class.split():
-                    # [수정] 공통 클릭 전 대기 참조 (LIKE_CONFIG 기반)
+                    # [수정] 공통 클릭 전 대기 참조 (LIKES_NEIGHBOR_CONFIG 기반)
                     smart_sleep(config.LIKES_NEIGHBOR_CONFIG["delays"].get("클릭전대기", (0.1, 0.3)), "공감 클릭 전 망설임 대기")
                     smart_click(self.driver, like_btn)
                     print("   > 👍 공감 완료")
