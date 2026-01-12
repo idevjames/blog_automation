@@ -50,7 +50,7 @@ class NaverSessionManager:
     def ensure_login(self):
         print("\n[시스템] 로그인 상태를 확인합니다...")
         self.driver.get("https://www.naver.com")
-        smart_sleep((1.0, 2.0))
+        smart_sleep((1.0, 2.0), "로그인 상태 확인 중")
         
         if self.check_login_status():
             print("✅ 기존 로그인 세션이 확인되었습니다.")

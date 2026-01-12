@@ -19,7 +19,7 @@ fi
 # 3. 가상환경 확인 및 자동 설치 (system 폴더 내부에 생성)
 if [ ! -d "system/venv" ]; then
     echo "📦 초기 설정: 가상환경을 설치합니다..."
-    python3 -m venv system/venv
+    python3.11 -m venv system/venv
     source system/venv/bin/activate
     pip install --upgrade pip
     pip install selenium requests
