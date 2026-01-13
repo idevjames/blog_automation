@@ -86,7 +86,7 @@ class ActionWorker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("네이버 블로그 자동화 v9.6 (버튼 수정판)")
+        self.setWindowTitle("네이버 블로그 자동화 v2.0")
         self.setFixedSize(650, 950)
         self.session = None
         self.watcher = None
