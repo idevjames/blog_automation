@@ -1,8 +1,22 @@
-# Python virtual environment
+# 1. 가상환경 (용량이 크고, 사용자마다 다름)
 system/venv/
+venv/
+.venv/
 
-# Naver login profile/session
+# 2. 개인 정보 및 세션 데이터 (★가장 중요★)
+# 네이버 로그인 쿠키나 브라우저 세션이 들어있으므로 절대 올리면 안 됩니다.
 system/naver_profile/
 
-# OS generated files
+# 3. 빌드 결과물 (PyInstaller로 만든 앱과 임시 파일)
+build/
+dist/
+*.spec
+
+# 4. 파이썬 캐시 파일 (실행 시 자동 생성됨)
+__pycache__/
+*.pyc
+
+# 5. OS 및 에디터 설정 파일 (불필요)
 .DS_Store
+.vscode/
+.idea/

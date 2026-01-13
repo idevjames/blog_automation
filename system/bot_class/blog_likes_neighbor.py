@@ -26,15 +26,25 @@ class BlogLikesNeighbor:
         
         clicked_total = 0
         current_page = start_page # [수정] 현재 페이지 설정
+        
+        # [수정] LIKES_NEIGHBOR_CONFIG 참조
+        conf = config.LIKES_NEIGHBOR_CONFIG
+        fail_limit = conf["conditions"].get("최대실패횟수", 5)
         fail_streak = 0 
 
         while clicked_total < target_count:
-            if fail_streak >= config.DEFAULT_LIKE_FAILURE_COUNT:
-                print(f"\n❌ {config.DEFAULT_LIKE_FAILURE_COUNT}회 연속 클릭 실패로 중단합니다.")
+            # [추가 작업 1] 중단 신호 체크
+            if hasattr(self, 'worker') and self.worker.is_stopped:
+                print("\n🛑 [중단] 사용자에 의해 작업이 중단되었습니다.")
+                break
+
+            if fail_streak >= fail_limit:
+                print(f"\n❌ {fail_limit}회 연속 클릭 실패로 중단합니다.")
                 break
 
             print(f"\n📄 {current_page}페이지 탐색 중...")
-            smart_sleep(config.DELAY_RANGE["page_load"], "데이터 로딩")
+            # [수정] reason 필수 및 config 참조
+            smart_sleep(conf["delays"].get("페이지로딩", (1.0, 2.5)), f"{current_page}페이지 피드 데이터 로딩 대기")
 
             selector = config.SELECTORS["feed_like_buttons"]
             buttons = self.driver.find_elements(By.CSS_SELECTOR, selector)
@@ -54,9 +64,13 @@ class BlogLikesNeighbor:
             print(f" > 발견된 버튼: {len(buttons)}개")
 
             for btn in buttons:
+                # [추가 작업 2] 버튼 반복 중 중단 신호 체크
+                if hasattr(self, 'worker') and self.worker.is_stopped:
+                    return
+
                 if clicked_total >= target_count:
                     break
-                if fail_streak >= config.DEFAULT_LIKE_FAILURE_COUNT:
+                if fail_streak >= fail_limit:
                     break
                 
                 result = self._process_like_button(btn)
@@ -65,7 +79,8 @@ class BlogLikesNeighbor:
                     clicked_total += 1
                     fail_streak = 0
                     print(f" > [{clicked_total}/{target_count}] ❤️ 공감 완료")
-                    smart_sleep(config.DELAY_RANGE["between_actions"])
+                    # [수정] reason 필수 및 config 참조
+                    smart_sleep(conf["delays"].get("작업간대기", (0.2, 0.5)), "다음 공감 버튼 클릭 전 휴식")
                 
                 elif result == "ALREADY":
                     # 진짜 이미 공감했던 글 (처음부터 aria-pressed가 true였던 경우)
@@ -74,10 +89,10 @@ class BlogLikesNeighbor:
                 
                 else: # FAIL or ERROR
                     fail_streak += 1
-                    print(f" > [실패] 클릭 실패 또는 오류 ({fail_streak}/{config.DEFAULT_LIKE_FAILURE_COUNT})")
+                    print(f" > [실패] 클릭 실패 또는 오류 ({fail_streak}/{fail_limit})")
             
             # 페이지 이동 로직
-            if clicked_total < target_count and fail_streak < config.DEFAULT_LIKE_FAILURE_COUNT:
+            if clicked_total < target_count and fail_streak < fail_limit:
                 current_page += 1
                 # [수정] 기존 버튼 클릭 방식 대신 URL 이동 방식(direct) 사용 권장
                 if not self._move_next_page_direct(current_page):
@@ -103,16 +118,19 @@ class BlogLikesNeighbor:
                 self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
             except:
                 # 버튼이 없어도 페이지는 로드된 것으로 간주 (추가 대기만)
-                smart_sleep((1.0, 2.0), "첫 페이지 콘텐츠 로딩 대기")
+                # [수정] reason 필수 및 config 참조
+                smart_sleep(config.LIKES_NEIGHBOR_CONFIG["delays"].get("페이지로딩", (1.0, 2.5)), "첫 페이지 콘텐츠 완전히 로드될 때까지 대기")
             
             return True
         except:
             return False
 
     def _process_like_button(self, btn):
+        conf_delay = config.LIKES_NEIGHBOR_CONFIG["delays"]
         try:
             self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
-            smart_sleep(config.DELAY_RANGE.get("before_click", (0.5, 0.5)))
+            # [수정] reason 필수 및 config 참조
+            smart_sleep(conf_delay.get("클릭전대기", (0.1, 0.3)), "공감 버튼 클릭 전 실제 사람처럼 대기")
 
             # 클릭하기 전 상태 저장 (방금 공감한 것과 원래 공감했던 것 구별)
             initial_state = btn.get_attribute("aria-pressed") == "true"
@@ -128,7 +146,8 @@ class BlogLikesNeighbor:
             # 클릭 후 확인: 원래 false였는데 true가 되면 SUCCESS
             # (이 경우는 방금 공감한 것이므로 로그 없이 처리됨)
             for _ in range(3):
-                smart_sleep(config.DELAY_RANGE.get("verify_interval", (0.5, 0.5)))
+                # [수정] reason 필수 및 config 참조
+                smart_sleep(conf_delay.get("확인대기", (0.3, 0.5)), "공감 처리 결과가 서버에 반영되는지 확인 중")
                 current_state = btn.get_attribute("aria-pressed") == "true"
                 if current_state:
                     # 원래 false였고 지금 true가 되었으므로 방금 공감 성공
@@ -144,7 +163,8 @@ class BlogLikesNeighbor:
         try:
             url = f"https://section.blog.naver.com/BlogHome.naver?currentPage={page_num}"
             self.driver.get(url)
-            smart_sleep(config.DELAY_RANGE["page_nav"], f"{page_num}페이지 이동")
+            # [수정] reason 필수 및 config 참조
+            smart_sleep(config.LIKES_NEIGHBOR_CONFIG["delays"].get("페이지이동", (1.0, 2.5)), f"{page_num}페이지로 직접 이동 후 대기")
             return True
         except:
             return False
