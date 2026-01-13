@@ -29,6 +29,7 @@
 ---
 
 ## 🖥️ 주요 기능 및 UI 가이드
+<img width="651" height="975" alt="스크린샷 2026-01-13 오후 10 53 57" src="https://github.com/user-attachments/assets/cf8c273f-48ae-426a-ad35-5ed3e3c14ce4" />
 
 프로그램 실행 시 나타나는 GUI 창을 통해 모든 기능을 제어하며, 로그를 실시간으로 확인할 수 있습니다.
 
