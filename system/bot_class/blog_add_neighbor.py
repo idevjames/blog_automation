@@ -31,6 +31,11 @@ class BlogAddNeighbor:
         page = start_page
         
         while current_success < target_count:
+            # [추가 작업 1] 루프 시작 시 중단 신호 체크
+            if hasattr(self, 'worker') and self.worker.is_stopped:
+                print("\n🛑 [중단] 사용자에 의해 작업이 중단되었습니다.")
+                break
+
             if self._should_stop_due_to_failures(consecutive_failures, fail_limit):
                 break
             
@@ -44,6 +49,10 @@ class BlogAddNeighbor:
             main_window = self.driver.current_window_handle
             
             for container in containers:
+                # [추가 작업 2] 블로그 개별 처리 전 중단 신호 체크
+                if hasattr(self, 'worker') and self.worker.is_stopped:
+                    return
+
                 if self._should_stop_processing(current_success, target_count, consecutive_failures, fail_limit):
                     break
                 

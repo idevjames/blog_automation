@@ -33,6 +33,11 @@ class BlogLikesNeighbor:
         fail_streak = 0 
 
         while clicked_total < target_count:
+            # [추가 작업 1] 중단 신호 체크
+            if hasattr(self, 'worker') and self.worker.is_stopped:
+                print("\n🛑 [중단] 사용자에 의해 작업이 중단되었습니다.")
+                break
+
             if fail_streak >= fail_limit:
                 print(f"\n❌ {fail_limit}회 연속 클릭 실패로 중단합니다.")
                 break
@@ -59,6 +64,10 @@ class BlogLikesNeighbor:
             print(f" > 발견된 버튼: {len(buttons)}개")
 
             for btn in buttons:
+                # [추가 작업 2] 버튼 반복 중 중단 신호 체크
+                if hasattr(self, 'worker') and self.worker.is_stopped:
+                    return
+
                 if clicked_total >= target_count:
                     break
                 if fail_streak >= fail_limit:
