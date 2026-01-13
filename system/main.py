@@ -33,7 +33,7 @@ def get_user_input_number(prompt_text):
         print("❌ 숫자를 정확히 입력해주세요. (1 이상의 정수, 뒤로가기는 b)")
 
 def main():
-    print("🤖 네이버 블로그 자동화 봇 (v1.5 - 환경 분리 완료)")
+    print("🤖 네이버 블로그 자동화 봇 (v2.0)")
     
     session = NaverSessionManager()
     if not session.ensure_login():

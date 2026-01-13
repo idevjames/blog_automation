@@ -137,7 +137,7 @@ class MainWindow(QMainWindow):
         l_form.addRow("🎯 목표 수:", self.like_cnt); l_form.addRow("📑 시작 페이지:", self.like_pg)
         like_layout.addWidget(self.l_base)
 
-        self.l_adv = QGroupBox("⚙️ 고급 설정")
+        self.l_adv = QGroupBox("⚙️ 고급 설정 (⏳ 최소~최대초 사이에서 랜덤값)")
         l_adv_vbox = QVBoxLayout(self.l_adv)
         l_scroll = QScrollArea(); l_scroll.setWidgetResizable(True); l_scroll.setFixedHeight(250)
         l_scr_content = QWidget(); l_scr_form = QFormLayout(l_scr_content)
@@ -172,7 +172,7 @@ class MainWindow(QMainWindow):
         a_form.addRow("🎯 목표 인원:", self.add_cnt); a_form.addRow("📑 시작 페이지:", self.add_pg)
         add_layout.addWidget(self.a_base)
 
-        self.a_adv = QGroupBox("⚙️ 고급 설정")
+        self.a_adv = QGroupBox("⚙️ 고급 설정 (⏳ 최소~최대초 사이에서 랜덤값)")
         a_adv_vbox = QVBoxLayout(self.a_adv)
         f_btn_lay = QHBoxLayout()
         btn_o_msg = QPushButton("📂 서이추 메시지 열기"); btn_o_msg.setObjectName("file_btn")

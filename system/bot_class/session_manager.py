@@ -63,7 +63,7 @@ class NaverSessionManager:
         smart_sleep((1.0, 2.0), "로그인 상태 확인 중")
         
         if self.check_login_status():
-            print("✅ 기존 로그인 세션이 확인되었습니다.")
+            print("✅ 기존 로그인 세션이 확인되었습니다.\n화면에서 필요한 기능을 수행하세요.")
             return True
         
         print("ℹ️ 로그인 정보가 없습니다. 로그인 페이지로 이동합니다.")
