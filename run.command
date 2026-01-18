@@ -46,12 +46,12 @@ if [ -f "system/gui_main.py" ]; then
     echo "🚀 GUI 봇을 실행합니다..."
     echo "---------------------------------------------"
     python system/gui_main.py
-elif [ -f "system/main.py" ]; then
+elif [ -f "system/gui_main.py" ]; then
     echo "🚀 터미널 봇을 실행합니다..."
     echo "---------------------------------------------"
-    python system/main.py
+    python system/gui_main.py
 else
-    echo "❌ 오류: 실행할 파이썬 파일(gui_main.py 또는 main.py)을 찾을 수 없습니다."
+    echo "❌ 오류: 실행할 파이썬 파일(gui_main.py)을 찾을 수 없습니다."
 fi
 
 echo

@@ -1,4 +1,3 @@
-# system/bot_class/blog_add_neighbor.py
 import sys
 import os
 import random
@@ -8,14 +7,19 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # 상위 폴더(system)의 모듈을 불러오기 위한 경로 설정
+current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+
 import config
-from utils import smart_sleep, smart_click
+from utils import smart_sleep, smart_click, human_typing
 
 class BlogAddNeighbor:
     def __init__(self, driver):
         self.driver = driver
         self.wait = WebDriverWait(self.driver, 5)
+        self.worker = None
 
     def run(self, active_directory_seq, directory_no, target_count, start_page=1):
         """메인 실행 함수"""
@@ -32,7 +36,7 @@ class BlogAddNeighbor:
         
         while current_success < target_count:
             # [추가 작업 1] 루프 시작 시 중단 신호 체크
-            if hasattr(self, 'worker') and self.worker.is_stopped:
+            if self.worker and self.worker.is_stopped:
                 print("\n🛑 [중단] 사용자에 의해 작업이 중단되었습니다.")
                 break
 
@@ -50,7 +54,7 @@ class BlogAddNeighbor:
             
             for container in containers:
                 # [추가 작업 2] 블로그 개별 처리 전 중단 신호 체크
-                if hasattr(self, 'worker') and self.worker.is_stopped:
+                if self.worker and self.worker.is_stopped:
                     return
 
                 if self._should_stop_processing(current_success, target_count, consecutive_failures, fail_limit):
@@ -269,7 +273,7 @@ class BlogAddNeighbor:
                 except Exception as e:
                     print(f"   > [댓글 오류 무시] {e}")
             
-            # 3. 창 닫기 및 복귀 (여기서 에러나도 result_status는 반환하도록 구조 변경)
+            # 3. 창 닫기 및 복귀
             try:
                 if self.driver.current_window_handle != main_window:
                     self.driver.close()
@@ -291,10 +295,7 @@ class BlogAddNeighbor:
             return "FAIL"
 
     def _try_add_neighbor_flow(self):
-        """
-        이웃 추가 버튼 클릭부터 팝업 처리까지의 흐름
-        [로그 복구] 이미 이웃, 신청 중 등의 사유를 명확히 출력
-        """
+        """이웃 추가 버튼 클릭부터 팝업 처리까지의 흐름"""
         conf_delay = config.ADD_NEIGHBOR_CONFIG["delays"]
         try:
             # 1. 버튼 찾기
@@ -400,11 +401,8 @@ class BlogAddNeighbor:
                                 alert = self.driver.switch_to.alert
                                 txt = alert.text
                                 alert.accept()
-                                
-                                # 이웃 추가 제한 메시지 체크
                                 if self._check_limit_reached(txt):
                                     return "LIMIT_REACHED"
-                                
                                 if "진행" in txt or "신청" in txt:
                                     print(f"   > [패스] 이미 신청 진행 중입니다.")
                                     return "ALREADY"
@@ -412,16 +410,14 @@ class BlogAddNeighbor:
                         break
             except: pass
 
-            # [Step 3] 메시지 입력
+            # [Step 3] 메시지 입력 (human_typing 적용)
             try:
                 selector = config.SELECTORS["popup_message_input"]
                 msg_input = self.driver.find_element(By.CSS_SELECTOR, selector)
                 msg_input.clear()
-                # [수정] ADD_NEIGHBOR_CONFIG 내 messages 리스트 참조
                 rand_msg = random.choice(config.ADD_NEIGHBOR_CONFIG["messages"])
-                msg_input.send_keys(rand_msg)
-                print(f"   > 💬 메시지 작성: {rand_msg}") 
-                # [수정] reason 필수 및 전용 딜레이 참조
+                print(f"   > 💬 서이추 메시지 타이핑: {rand_msg}")
+                human_typing(msg_input, rand_msg) 
                 smart_sleep(conf_delay.get("메시지입력후대기", (0.2, 0.5)), "메시지 작성 후 검토 대기")
             except: 
                 print("   > [실패] 메시지 입력창을 찾을 수 없습니다.")
@@ -436,24 +432,15 @@ class BlogAddNeighbor:
                     if btn.is_displayed():
                         smart_click(self.driver, btn)
                         clicked = True
-                        # [수정] reason 필수 및 전용 딜레이 참조
                         smart_sleep(conf_delay.get("전송후대기", (1.0, 2.0)), "최종 신청 전송 완료 대기")
-
-                        # 알림창으로 스위치
                         try:
                             alert = self.driver.switch_to.alert
                             alert_text = alert.text
-                            
-                            # 작성하신 제한 확인 함수 호출
                             if self._check_limit_reached(alert_text):
-                                alert.accept() # 알림창 닫기
-                                return "LIMIT_REACHED" # [중요] 제한 걸림 신호 반환
-                            
-                            # 제한 메시지가 아닌 다른 알림창이라면 (예: 단순 오류 등)
-                            print(f"   > [알림] 팝업 메시지: {alert_text}")
+                                alert.accept()
+                                return "LIMIT_REACHED"
                             alert.accept()
                         except: pass
-
                         break
             except: pass
             
@@ -461,12 +448,7 @@ class BlogAddNeighbor:
                 print("   > [실패] 전송 버튼을 누르지 못했습니다.")
                 return "FAIL"
 
-
-            # [Step 5] 최종 확인
-            if "신청" in self.driver.page_source:
-                return "SUCCESS"
-            
-            return "FAIL"
+            return "SUCCESS"
 
         except Exception as e:
             print(f"   > [팝업 에러] {e}")
@@ -481,42 +463,33 @@ class BlogAddNeighbor:
             except: return None
     
     def _add_like_and_comment(self):
-        """플로팅 바 활성화를 위한 스크롤 후 공감/댓글 일괄 처리"""
+        """공감 및 댓글 일괄 처리 (human_typing 적용)"""
         conf_delay = config.ADD_NEIGHBOR_CONFIG["delays"]
         print("   > [작업] 공감 및 댓글 작성을 시작합니다.")
         
         try:
-            # 1. 방(mainFrame) 입장
             self.driver.switch_to.default_content()
             WebDriverWait(self.driver, 5).until(EC.frame_to_be_available_and_switch_to_it((By.ID, "mainFrame")))
             
-            # 2. 플로팅 바 활성화를 위한 실제 스크롤 수행
-            print("   > (화면 스크롤 중...)")
+            # 스크롤 수행
             scroll_ratio = conf_delay.get("스크롤최대비율", 0.8)
             self.driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight * {scroll_ratio});")
-            # [수정] reason 필수 및 전용 딜레이 참조
             smart_sleep(conf_delay.get("스크롤대기", (0.5, 1.0)), "공감/댓글 영역 노출을 위한 스크롤 대기")
 
-            # 3. 버튼 영역 컨테이너 찾기
             try:
-                container_sel = config.SELECTORS["floating_container"]
-                WebDriverWait(self.driver, 5).until(EC.visibility_of_element_located((By.CSS_SELECTOR, container_sel)))
-                container = self.driver.find_element(By.CSS_SELECTOR, container_sel)
+                container = self.driver.find_element(By.CSS_SELECTOR, config.SELECTORS["floating_container"])
             except:
-                print("   > [알림] 플로팅 바가 나타나지 않아 본문 하단 영역을 탐색합니다.")
                 container = self.driver.find_element(By.CSS_SELECTOR, config.SELECTORS["static_container"])
 
             # --- [STEP A] 공감하기 ---
             try:
                 like_btn = container.find_element(By.CSS_SELECTOR, config.SELECTORS["like_button_face"])
                 btn_class = like_btn.get_attribute("class") or ""
-                
                 if "off" in btn_class.split():
-                    # [수정] 공통 클릭 전 대기 참조 (LIKES_NEIGHBOR_CONFIG 기반)
-                    smart_sleep(config.LIKES_NEIGHBOR_CONFIG["delays"].get("클릭전대기", (0.1, 0.3)), "공감 클릭 전 망설임 대기")
+                    smart_sleep(config.LIKES_NEIGHBOR_CONFIG["delays"].get("클릭전대기", (0.1, 0.3)), "공감 클릭 전 대기")
                     smart_click(self.driver, like_btn)
                     print("   > 👍 공감 완료")
-                    smart_sleep(config.LIKES_NEIGHBOR_CONFIG["delays"].get("작업간대기", (0.2, 0.5)), "공감 완료 후 댓글 작성 전 휴식")
+                    smart_sleep(config.LIKES_NEIGHBOR_CONFIG["delays"].get("작업간대기", (0.2, 0.5)), "공감 완료 후 휴식")
                 else:
                     print("   > [패스] 이미 공감함")
             except Exception as e:
@@ -526,42 +499,23 @@ class BlogAddNeighbor:
             try:
                 comment_btn = container.find_element(By.CSS_SELECTOR, config.SELECTORS["post_view_comment_button"])
                 smart_click(self.driver, comment_btn)
-                
-                # 입력창 가시성 대기
                 input_sel = config.SELECTORS["comment_text_area"]
                 WebDriverWait(self.driver, 5).until(EC.visibility_of_element_located((By.CSS_SELECTOR, input_sel)))
-                # [수정] reason 필수 및 전용 딜레이 참조
                 smart_sleep(conf_delay.get("댓글창대기", (1.5, 2.0)), "댓글 입력창 가시성 대기")
-
-                # 가이드 문구 물리 클릭하여 치우기
-                try:
-                    guide = self.driver.find_element(By.CSS_SELECTOR, config.SELECTORS["comment_guide_text"])
-                    if guide.is_displayed():
-                        smart_click(self.driver, guide)
-                        smart_sleep(config.LIKES_NEIGHBOR_CONFIG["delays"].get("클릭전대기", (0.1, 0.3)), "댓글 가이드 텍스트 제거 대기")
-                except: pass
 
                 # 실제 입력창 타이핑
                 comment_input = self.driver.find_element(By.CSS_SELECTOR, input_sel)
                 smart_click(self.driver, comment_input)
-                smart_sleep(config.LIKES_NEIGHBOR_CONFIG["delays"].get("클릭전대기", (0.1, 0.3)), "댓글 입력창 포커스 대기")
                 
-                # [수정] ADD_NEIGHBOR_CONFIG 내 comments 리스트 참조
                 comment_msg = random.choice(config.ADD_NEIGHBOR_CONFIG["comments"])
-                comment_input.send_keys(comment_msg)
-                comment_input.send_keys(" ") 
+                print(f"   > 💬 댓글 타이핑: {comment_msg}")
+                human_typing(comment_input, comment_msg) 
                 
-                print(f"   > 💬 메시지 입력 완료: {comment_msg}")
-                # [수정] reason 필수 및 전용 딜레이 참조
-                smart_sleep(conf_delay.get("메시지입력후대기", (0.2, 0.5)), "댓글 입력 완료 후 전송 버튼 클릭 전 대기")
-
-                # [등록] 버튼 물리 클릭
+                smart_sleep(conf_delay.get("메시지입력후대기", (0.2, 0.5)), "댓글 입력 완료 후 대기")
                 submit_btn = self.driver.find_element(By.CSS_SELECTOR, config.SELECTORS["comment_submit_button"])
                 smart_click(self.driver, submit_btn)
                 print("   > ✅ 댓글 등록 완료")
-                # [수정] reason 필수 및 전용 딜레이 참조 (목록 로딩 딜레이 활용)
                 smart_sleep(conf_delay.get("목록페이지로딩", (1.0, 2.5)), "댓글 등록 완료 후 안정화 대기")
-
             except Exception as e:
                 print(f"   > [댓글 실패] {e}")
 
