@@ -48,3 +48,11 @@ def smart_click(driver, element):
         # [수정] 에러 메시지 정리
         print(f"   (⚠️ 물리 클릭 실패 : {e})")
         return False
+    
+    
+def human_typing(element, text):
+    """사람이 타이핑하는 것처럼 한 글자씩 입력"""
+    for char in text:
+        element.send_keys(char)
+        # 글자 사이의 간격을 랜덤하게 줘서 기계적인 느낌을 없앰
+        time.sleep(random.uniform(0.05, 0.15))

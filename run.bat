@@ -56,12 +56,12 @@ if not exist "system\venv" (
 
 set PYTHONPATH=%PYTHONPATH%;%cd%
 
-if exist "system\main.py" (
+if exist "system\gui_main.py" (
     echo [START] Running the bot...
     echo ---------------------------------------------
-    python system\main.py
+    python system\gui_main.py
 ) else (
-    echo [ERROR] system\main.py not found.
+    echo [ERROR] system\gui_main.py not found.
 )
 
 echo.

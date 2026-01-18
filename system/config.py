@@ -21,10 +21,11 @@ if not os.path.exists(settings_dir):
     if os.path.exists(parent_settings):
         settings_dir = parent_settings
 
-path_like_setup = os.path.join(settings_dir, '게시글공감설정.txt')
-path_add_setup = os.path.join(settings_dir, '서이추설정.txt')
-path_neighbor_msg = os.path.join(settings_dir, '서이추메세지관리.txt')
-path_comment_msg = os.path.join(settings_dir, '서이추댓글관리.txt')
+path_like_setup = os.path.join(settings_dir, 'setup_like.txt')
+path_add_setup = os.path.join(settings_dir, 'setup_add_neighbor.txt')
+path_comment_setup = os.path.join(settings_dir, 'setup_comments.txt')
+path_neighbor_msg = os.path.join(settings_dir, 'setup_add_neighbor_messages.txt')
+path_comment_msg = os.path.join(settings_dir, 'setup_add_neighbor_comments.txt')
 
 def load_settings(file_path):
     settings = {}
@@ -38,6 +39,7 @@ def load_settings(file_path):
 
 like_raw = load_settings(path_like_setup)
 add_raw = load_settings(path_add_setup)
+comment_raw = load_settings(path_comment_setup)
 neighbor_msg_data = load_settings(path_neighbor_msg)
 comment_msg_data = load_settings(path_comment_msg)
 
@@ -52,6 +54,12 @@ ADD_NEIGHBOR_CONFIG = {
     "comments": comment_msg_data.get("COMMENT_MESSAGES", [])
 }
 
+NEIGHBOR_COMMENT_CONFIG = {
+    "delays": comment_raw.get("COMMENT_DELAYS", {}),
+    "conditions": comment_raw.get("COMMENT_CONDITIONS", {}),
+    "messages": comment_msg_data.get("COMMENT_MESSAGES", [])
+}
+
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
 THEME_CATEGORIES = {
@@ -62,11 +70,24 @@ THEME_CATEGORIES = {
 }
 
 SELECTORS = {
+    # 피드 리스트 관련
+    "feed_item_inner": "div.item_inner",
+    "feed_author_link": "a.author",
+    "feed_nickname": "em.name_author",
+    "feed_reply_icon": "span.reply",
+    
+    # 블로그 본문 및 댓글창 관련
+    "main_frame": "mainFrame",
+    "my_write_nickname": "span.u_cbox_write_name",
+    "comment_list_nicknames": "span.u_cbox_nick",
+    "comment_open_button": ".btn_comment, a.area_comment",
+    "comment_input_area": ".u_cbox_text.u_cbox_text_mention",
+    "comment_submit_button": "button.u_cbox_btn_upload",
+    
+    # 공통 및 기타
     "feed_like_buttons": "div.u_likeit_list_module .u_likeit_list_btn, .u_likeit_button",
     "post_view_like_button": "#floating_bottom .u_likeit_button",
     "post_view_comment_button": "#floating_bottom .btn_comment",
-    "comment_input_area": "textarea.u_cbox_text",
-    "comment_submit_button": "button.u_cbox_btn_upload",
     "pagination": ".pagination a, .section_pagination a",
     "theme_post_links": "a.desc_inner",
     "add_neighbor_btn": ".btn_buddy, .btn_addbuddy, .btn_blog_neighbor, #neighbor, .btn_neighbor, a.btn_add",
