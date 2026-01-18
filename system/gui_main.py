@@ -157,7 +157,7 @@ class MainWindow(QMainWindow):
         self.log_text.append(text); self.log_text.moveCursor(QTextCursor.MoveOperation.End)
         if "❤️ 공감 완료" in text: self.total_like_success += 1; self.update_tab_labels()
         elif "🎉 이웃 신청 완료!" in text: self.total_add_success += 1; self.update_tab_labels()
-        elif "💬 이웃 댓글 완료" in text: self.total_comment_success += 1; self.update_tab_labels()
+        elif "이웃에게 댓글작성 완료!" in text: self.total_comment_success += 1; self.update_tab_labels()
         QApplication.processEvents()
 
     def _add_config_row(self, form, input_dict, k, v):
