@@ -57,7 +57,6 @@ class ActionWorker(QThread):
 
     def run(self):
         try:
-            # 작업 시작 전 기존 탭 정리 (메인 탭 제외하고 닫기)
             if self.action_type in ["like_task", "add_task"]:
                 driver = self.session.driver
                 while len(driver.window_handles) > 1:
@@ -71,12 +70,12 @@ class ActionWorker(QThread):
                 self.finished_signal.emit(session)
             elif self.action_type == "like_task":
                 bot = BlogLikesNeighbor(self.session.driver)
-                bot.worker = self # 중단 신호 전달용
+                bot.worker = self
                 bot.run(self.params['cnt'], self.params['pg'])
                 self.finished_signal.emit("✅ 이웃 공감 작업 종료")
             elif self.action_type == "add_task":
                 bot = BlogAddNeighbor(self.session.driver)
-                bot.worker = self # 중단 신호 전달용
+                bot.worker = self
                 bot.run(self.params['main_id'], self.params['sub_id'], self.params['cnt'], self.params['pg'])
                 self.finished_signal.emit("✅ 서이추 신청 작업 종료")
         except Exception as e:
@@ -86,10 +85,14 @@ class ActionWorker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("네이버 블로그 자동화 v2.0")
+        self.setWindowTitle("네이버 블로그 자동화 v2.1")
         self.setFixedSize(650, 950)
         self.session = None
         self.watcher = None
+        
+        # --- [추가] 실시간 누적 성공 횟수 변수 ---
+        self.total_like_success = 0
+        self.total_add_success = 0
         
         self.gui_logger = GuiLogger()
         self.gui_logger.log_signal.connect(self.append_log)
@@ -129,8 +132,6 @@ class MainWindow(QMainWindow):
         
         # --- [1] 이웃 새글 공감 탭 ---
         like_tab = QWidget(); like_layout = QVBoxLayout(like_tab)
-        
-        # [수정] 그룹박스를 self 변수로 지정하여 개별 제어 가능하게 함
         self.l_base = QGroupBox("📌 핵심 제어")
         l_form = QFormLayout(self.l_base)
         self.like_cnt = QLineEdit("50"); self.like_pg = QLineEdit("1")
@@ -161,7 +162,6 @@ class MainWindow(QMainWindow):
 
         # --- [2] 서로이웃 신청 탭 ---
         add_tab = QWidget(); add_layout = QVBoxLayout(add_tab)
-        
         self.a_base = QGroupBox("📌 핵심 제어")
         a_form = QFormLayout(self.a_base)
         self.combo_main = QComboBox(); self.combo_sub = QComboBox()
@@ -206,9 +206,23 @@ class MainWindow(QMainWindow):
         self.log_text = QTextEdit(); self.log_text.setReadOnly(True)
         main_layout.addWidget(self.log_text); self.setCentralWidget(central_widget)
 
+    # --- [수정] 탭 이름 실시간 업데이트 함수 ---
+    def update_tab_labels(self):
+        self.tabs.setTabText(0, f"❤️ 이웃 공감 (+{self.total_like_success})")
+        self.tabs.setTabText(1, f"🤝 서이추 신청 (+{self.total_add_success})")
+
     def append_log(self, text):
         self.log_text.append(text); self.log_text.moveCursor(QTextCursor.MoveOperation.End)
-        QApplication.processEvents() # UI 멈춤 방지 필수
+        
+        # --- [추가] 로그 분석을 통한 실시간 카운트 업 ---
+        if "❤️ 공감 완료" in text:
+            self.total_like_success += 1
+            self.update_tab_labels()
+        elif "🎉 이웃 신청 완료!" in text:
+            self.total_add_success += 1
+            self.update_tab_labels()
+            
+        QApplication.processEvents()
 
     def update_status_ui(self, status):
         colors = {0: "#ff4444", 1: "#FFFF00", 2: "#2db400"}
@@ -273,7 +287,6 @@ class MainWindow(QMainWindow):
         self.start_action("add_task", {'main_id': self.combo_main.currentData(), 'sub_id': self.combo_sub.currentData(), 'cnt': int(self.add_cnt.text() or 20), 'pg': int(self.add_pg.text() or 1)})
 
     def stop_task(self):
-        """중단 버튼 로직"""
         if hasattr(self, 'worker') and self.worker.isRunning():
             self.worker.is_stopped = True 
             self.append_log("\n🛑 작업 중단 요청됨... (현재 단계 마무리 후 멈춥니다)")
@@ -287,8 +300,7 @@ class MainWindow(QMainWindow):
         if action_type != "init_session" and (not self.session or not self.session.driver):
             self.append_log("❌ 브라우저 준비 필요"); return
         
-        # [수정] 탭 전체를 비활성화하지 않고 입력창/시작버튼만 잠금 (중단버튼 활성화를 위해)
-        self.tabs.tabBar().setEnabled(False) # 탭 전환만 막기
+        self.tabs.tabBar().setEnabled(False)
         self.l_base.setEnabled(False); self.l_adv.setEnabled(False)
         self.a_base.setEnabled(False); self.a_adv.setEnabled(False)
         
@@ -301,10 +313,9 @@ class MainWindow(QMainWindow):
     def on_action_finished(self, result):
         if isinstance(result, NaverSessionManager): 
             self.session = result
-            if not self.watcher: self.watcher = SessionWatcher(self); self.watcher.status_signal.connect(self.update_status_ui); self.watcher.start()
+            if not self.watcher: self.watcher = SessionWatcher(self); self.status_signal = self.watcher.status_signal; self.watcher.status_signal.connect(self.update_status_ui); self.watcher.start()
         elif result: self.append_log(str(result))
         
-        # UI 다시 활성화
         self.tabs.tabBar().setEnabled(True)
         self.l_base.setEnabled(True); self.l_adv.setEnabled(True)
         self.a_base.setEnabled(True); self.a_adv.setEnabled(True)

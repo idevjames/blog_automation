@@ -21,10 +21,10 @@ if not os.path.exists(settings_dir):
     if os.path.exists(parent_settings):
         settings_dir = parent_settings
 
-path_like_setup = os.path.join(settings_dir, '게시글공감설정.txt')
-path_add_setup = os.path.join(settings_dir, '서이추설정.txt')
-path_neighbor_msg = os.path.join(settings_dir, '서이추메세지관리.txt')
-path_comment_msg = os.path.join(settings_dir, '서이추댓글관리.txt')
+path_like_setup = os.path.join(settings_dir, 'setup_like.txt')
+path_add_setup = os.path.join(settings_dir, 'setup_add_neighbor.txt')
+path_neighbor_msg = os.path.join(settings_dir, 'setup_add_neighbor_messages.txt')
+path_comment_msg = os.path.join(settings_dir, 'setup_add_neighbor_comments.txt')
 
 def load_settings(file_path):
     settings = {}
