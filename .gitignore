@@ -7,6 +7,7 @@ venv/
 # 네이버 로그인 쿠키나 브라우저 세션이 들어있으므로 절대 올리면 안 됩니다.
 system/naver_profile/
 system/bot_class/neighbor_history.db
+system/settings/setup_gemini.txt
 
 # 3. 빌드 결과물 (PyInstaller로 만든 앱과 임시 파일)
 build/

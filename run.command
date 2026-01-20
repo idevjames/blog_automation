@@ -32,7 +32,7 @@ if [ ! -d "system/venv" ]; then
     source system/venv/bin/activate
     pip install --upgrade pip
     # PyQt6 라이브러리 추가 설치
-    pip install selenium requests PyQt6
+    pip install selenium requests PyQt6 google-generativeai
     echo "✅ 설치 완료."
 else
     source system/venv/bin/activate

@@ -105,6 +105,23 @@ class CommentTab(QWidget):
         form.addRow("📑 시작 페이지:", self.comment_pg)
         form.addRow("📅 댓글 주기(일):", self.comment_interval)
         layout.addWidget(self.c_base)
+        
+        # [신규] Gemini AI 설정 그룹
+        self.c_ai = QGroupBox("🤖 Gemini AI 설정 (자동 댓글)")
+        ai_layout = QFormLayout(self.c_ai)
+        
+        self.ai_key = QLineEdit(config.GEMINI_CONFIG.get("GEMINI_API_KEY", ""))
+        self.ai_key.setPlaceholderText("Gemini API Key를 입력하세요")
+        self.ai_key.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit) # 보안용
+        
+        self.ai_prompt = QTextEdit()
+        self.ai_prompt.setPlainText(config.GEMINI_CONFIG.get("GEMINI_PROMPT", ""))
+        self.ai_prompt.setFixedHeight(80)
+        self.ai_prompt.setPlaceholderText("AI에게 시킬 명령어를 입력하세요")
+        
+        ai_layout.addRow("🔑 API Key:", self.ai_key)
+        ai_layout.addRow("📝 프롬프트:", self.ai_prompt)
+        layout.addWidget(self.c_ai)
 
         self.c_adv = QGroupBox("⚙️ 고급 설정 (⏳ neighbor_history.db 연동)")
         adv_vbox = QVBoxLayout(self.c_adv)
@@ -121,7 +138,7 @@ class CommentTab(QWidget):
             if k == "방문주기": continue
             s = QLineEdit(str(v)); self.scr_form.addRow(f"🔍 {k}:", s); self.inputs[k] = s
         scroll.setWidget(scr_content); adv_vbox.addWidget(scroll)
-        btn_save = QPushButton("💾 댓글 수치 설정 저장"); btn_save.setObjectName("save_btn")
+        btn_save = QPushButton("💾 AI 설정 & 댓글 수치 설정 저장"); btn_save.setObjectName("save_btn")
         btn_save.clicked.connect(self.main.save_comment_settings)
         adv_vbox.addWidget(btn_save); layout.addWidget(self.c_adv)
 
