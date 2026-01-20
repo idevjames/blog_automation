@@ -34,7 +34,6 @@ rm -rf build dist gui_main.spec
 echo -e "${BLUE}🏗️  PyInstaller를 사용하여 실행 파일 빌드를 시작합니다...${NC}"
 
 python3 -m PyInstaller --noconfirm --onedir --windowed --clean \
-    --add-data "system/settings:settings" \
     --add-data "system/bot_class:bot_class" \
     --add-data "system/ai_helper.py:." \
     --collect-submodules "bot_class" \
@@ -45,7 +44,9 @@ python3 -m PyInstaller --noconfirm --onedir --windowed --clean \
 # 앱 옆에 복사된 이 settings 폴더의 파일들이 실제 저장/수정 대상이 됩니다.
 echo -e "🚚 사용자용 외부 설정 파일 폴더를 구성합니다..."
 mkdir -p dist/settings
-cp system/settings/*.txt dist/settings/
+rsync -av --exclude='setup_gemini.txt' system/settings/*.txt dist/settings/
+
+echo -e "${GREEN}✅ setup_gemini.txt를 제외한 설정 파일 복사 완료!${NC}"
 
 # 6. 추가 배포 파일 복사 (README, 실행 스크립트 등)
 echo -e "📝 추가 배포 파일(README, command) 복사 중..."

@@ -13,8 +13,8 @@ class GeminiHelper:
             try:
                 genai.configure(api_key=self.api_key)
                 # 가성비 좋은 2.5-flash 모델 사용
-                GeminiHelper._model = genai.GenerativeModel('gemini-2.5-flash')
-                print("✅ Gemini 2.5 Flash 연결 성공! (최초 1회)")
+                GeminiHelper._model = genai.GenerativeModel('gemini-2.5-flash-lite')
+                print("✅ Gemini 2.5 Flash-Lite 연결 성공! (최초 1회)")
             except Exception as e:
                 print(f"⚠️ Gemini 설정 오류: {e}")
 
