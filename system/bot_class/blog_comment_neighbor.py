@@ -123,104 +123,92 @@ class BlogCommenter:
         print(f"\n✨ 목표 수량({target_count}) 달성! 작업을 종료합니다.")
 
     def execute_commenting(self, blog_id, nickname, messages, delays):
-        """댓글 작성 상세 로직 (Gemini AI 연동 및 실패 시 대응 로직)"""
-        try:
-            # [Delay 3] 프레임 전환 대기
-            self.wait.until(EC.frame_to_be_available_and_switch_to_it((By.ID, "mainFrame")))
-            smart_sleep(delays.get("프레임_전환_대기", (0.5, 1.0)), "댓글 프레임 전환")
-            
-            # [Delay 4] 중복 체크 대기
-            smart_sleep(delays.get("중복_체크_대기", (1.5, 2.0)), "기존 댓글 스캔 중")
-            if self.check_already_commented():
-                print(f"   > 🚫 스킵: 이미 내 댓글이 달려 있습니다.")
-                return False 
-
-            # --- [댓글 메시지 결정 로직] ---
-            final_msg = ""
-            
-            # AI 사용 모드인 경우
-            if config.GEMINI_CONFIG.get("USE_GEMINI") and config.GEMINI_CONFIG.get("GEMINI_API_KEY"):
-                try:
-                    from ai_helper import GeminiHelper
-                    
-                    # 1. 본문 텍스트 추출 시도
-                    try:
-                        content_el = self.driver.find_element(By.CSS_SELECTOR, self.selectors.get("post_content", ".se-main-container, #postViewArea"))
-                        post_text = content_el.text.strip()
-                    except:
-                        # [조건 2] 본문 추출 자체가 안 되는 경우 실패로 간주하고 종료
-                        print(f"   > ❌ 실패: 본문 영역을 찾을 수 없습니다. (취소)")
-                        return False
-
-                    # [조건 3] 본문 내용이 80자 미만인 경우 내용 없음으로 간주하고 종료
-                    if len(post_text) < 80:
-                        print(f"   > ❌ 취소: 본문 내용이 너무 짧습니다. (80자 미만)")
-                        return False
-                    
-                    # 추출 성공 시 로그 출력 (축약형)
-                    log_post = post_text[:50] + "\n[...중략...]\n" + post_text[-30:] if len(post_text) > 80 else post_text
-                    print(f"[본문 추출 성공]\n{log_post}")
-                    
-                    # 2. Gemini AI 댓글 생성 요청
-                    helper = GeminiHelper(config.GEMINI_CONFIG["GEMINI_API_KEY"])
-                    ai_reply = helper.generate_comment(post_text, config.GEMINI_CONFIG.get("GEMINI_PROMPT", ""))
-                    
-                    if ai_reply:
-                        final_msg = ai_reply
-                        print(f"   > 🤖 AI 맞춤 댓글 생성 완료")
-                    else:
-                        # [조건 1] AI 댓글 생성 실패 시 기존 리스트 활용
-                        print(f"   > ⚠️ AI 생성 실패: 기존 댓글 리스트를 활용합니다.")
-                        final_msg = random.choice(messages)
-                        
-                except Exception as e:
-                    # AI 로직 중 에러 발생 시 기존 리스트로 백업
-                    print(f"   > ⚠️ AI 프로세스 에러 ({e}): 기존 댓글 리스트를 활용합니다.")
-                    final_msg = random.choice(messages)
-            else:
-                # AI 미사용 설정 시 기본 리스트 활용
-                final_msg = random.choice(messages)
-
-            # 만약 어떤 이유로든 메시지가 비어있다면 백업
-            if not final_msg:
-                final_msg = random.choice(messages)
-            # -------------------------------
-
-            # [Delay 5] 입력창 찾기 대기
-            smart_sleep(delays.get("입력창_찾기_대기", (1.0, 2.0)), "댓글 입력창 탐색")
+            """댓글 작성 상세 로직 (비용 최적화: 입력창 확인 후 AI 호출)"""
             try:
-                input_area = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, self.selectors["comment_input_area"])))
-            except:
-                btn = self.driver.find_element(By.CSS_SELECTOR, self.selectors["comment_open_button"])
-                smart_click(self.driver, btn)
-                input_area = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, self.selectors["comment_input_area"])))
+                # [Delay 3] 프레임 전환 대기
+                self.wait.until(EC.frame_to_be_available_and_switch_to_it((By.ID, "mainFrame")))
+                smart_sleep(delays.get("프레임_전환_대기", (0.5, 1.0)), "댓글 프레임 전환")
+                
+                # [Delay 4] 중복 체크 대기
+                smart_sleep(delays.get("중복_체크_대기", (1.5, 2.0)), "기존 댓글 스캔 중")
+                if self.check_already_commented():
+                    print(f"   > 🚫 스킵: 이미 내 댓글이 달려 있습니다.")
+                    return False 
 
-            # [Delay 6] 입력창 클릭 대기
-            smart_sleep(delays.get("입력창_클릭_대기", (0.5, 1.0)), "입력창 포커스 대기")
-            smart_click(self.driver, input_area)
-            
-            # 최종 메시지 입력
-            print(f"   > [댓글 작성] {final_msg}")
-            human_typing(input_area, final_msg)
-            
-            # [Delay 7] 타이핑 후 대기 (검토 시간)
-            smart_sleep(delays.get("타이핑_후_대기", (1.5, 2.5)), "입력 완료 후 검토")
+                # --- [Step 1: 댓글 입력창 먼저 확보] ---
+                # AI 토큰을 쓰기 전에 댓글을 쓸 수 있는 상태인지 먼저 체크합니다.
+                smart_sleep(delays.get("입력창_찾기_대기", (1.0, 2.0)), "댓글 입력창 탐색")
+                try:
+                    # 입력창이 바로 보이는지 확인
+                    input_area = self.driver.find_element(By.CSS_SELECTOR, self.selectors["comment_input_area"])
+                except:
+                    try:
+                        # 안 보이면 '댓글 열기' 버튼 시도
+                        btn = self.driver.find_element(By.CSS_SELECTOR, self.selectors["comment_open_button"])
+                        smart_click(self.driver, btn)
+                        # 버튼 클릭 후 입력창이 나타날 때까지 대기
+                        input_area = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, self.selectors["comment_input_area"])))
+                    except:
+                        print(f"   > ❌ 실패: 댓글 작성 영역을 찾을 수 없습니다. (토큰 절약)")
+                        return False
 
-            # 등록 버튼 클릭
-            submit_btn = self.driver.find_element(By.CSS_SELECTOR, self.selectors["comment_submit_button"])
-            smart_click(self.driver, submit_btn)
-            
-            # [Delay 8] 등록 완료 대기
-            smart_sleep(delays.get("등록_완료_대기", (2.5, 4.0)), "서버 등록 처리 대기")
+                # --- [Step 2: 입력창 확보 성공 후 AI 댓글 생성] ---
+                final_msg = ""
+                
+                if config.GEMINI_CONFIG.get("USE_GEMINI") and config.GEMINI_CONFIG.get("GEMINI_API_KEY"):
+                    try:
+                        # 본문 추출
+                        try:
+                            content_el = self.driver.find_element(By.CSS_SELECTOR, self.selectors.get("post_content", ".se-main-container, #postViewArea"))
+                            post_text = content_el.text.strip()
+                        except:
+                            print(f"   > ❌ 취소: 본문 추출 실패")
+                            return False
 
-            # DB 저장
-            self.db.save_comment_success(blog_id, nickname)
-            return True
-            
-        except Exception as e:
-            print(f"   > ❌ 작성 에러: {e}")
-            return False
+                        if len(post_text) < 80:
+                            print(f"   > ❌ 취소: 본문 80자 미만")
+                            return False
+                        
+                        # AI 호출
+                        from ai_helper import GeminiHelper
+                        helper = GeminiHelper(config.GEMINI_CONFIG["GEMINI_API_KEY"])
+                        ai_reply = helper.generate_comment(post_text, config.GEMINI_CONFIG.get("GEMINI_PROMPT", ""))
+                        
+                        if ai_reply:
+                            final_msg = ai_reply
+                            print(f"   > 🤖 AI 댓글 생성 성공")
+                        else:
+                            print(f"   > ⚠️ AI 생성 실패: 리스트 활용")
+                            final_msg = random.choice(messages)
+                            
+                    except Exception as e:
+                        print(f"   > ⚠️ AI 프로세스 에러: {e}")
+                        final_msg = random.choice(messages)
+                else:
+                    final_msg = random.choice(messages)
 
+                if not final_msg: final_msg = random.choice(messages)
+
+                # --- [Step 3: 최종 입력 및 등록] ---
+                smart_sleep(delays.get("입력창_클릭_대기", (0.5, 1.0)), "입력창 포커스")
+                smart_click(self.driver, input_area)
+                
+                print(f"   > [댓글 작성] {final_msg}")
+                human_typing(input_area, final_msg)
+                
+                smart_sleep(delays.get("타이핑_후_대기", (1.5, 2.5)), "검토 중")
+
+                submit_btn = self.driver.find_element(By.CSS_SELECTOR, self.selectors["comment_submit_button"])
+                smart_click(self.driver, submit_btn)
+                
+                smart_sleep(delays.get("등록_완료_대기", (2.5, 4.0)), "등록 대기")
+                self.db.save_comment_success(blog_id, nickname)
+                return True
+                
+            except Exception as e:
+                print(f"   > ❌ 작성 에러: {e}")
+                return False
+        
     def check_already_commented(self):
         """내 댓글 존재 여부 확인"""
         try:
