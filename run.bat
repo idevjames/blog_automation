@@ -48,7 +48,7 @@ if not exist "system\venv" (
     python -m venv system\venv
     call system\venv\Scripts\activate.bat
     pip install --upgrade pip
-    pip install selenium requests
+    pip install selenium requests PyQt6 google-generativeai
     echo [OK] Setup complete.
 ) else (
     call system\venv\Scripts\activate.bat

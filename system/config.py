@@ -111,3 +111,56 @@ SELECTORS = {
     "comment_guide_text": ".u_cbox_guide",
     "comment_text_area": ".u_cbox_text",
 }
+
+# --- Gemini AI 관련 설정 추가 ---
+path_gemini_setup = os.path.join(settings_dir, 'setup_gemini.txt')
+
+def load_gemini_settings(file_path):
+    """Gemini 설정을 로드하고, 파일이 없으면 기본 양식 생성"""
+    default_settings = {
+        "GEMINI_API_KEY": "",
+        "GEMINI_PROMPT": """당신은 따뜻하고 예의 바른 네이버 블로그 이웃입니다.
+제공된 [게시글 본문]을 읽고, [게시글 본문]과 가장 어울리고 작성자가 기분 좋아할 공감 댓글을 작성하세요.
+
+[작성 규칙]
+1. 본문에서 언급된 구체적인 키워드나 내용을 하나 이상 포함할 것.
+2. 너무 길지 않게 1~2문장 사이로 작성할 것.
+3. '잘 보고 갑니다' 같은 기계적인 표현은 지양하고 친근한 어조를 사용할 것.
+4. 그림 이모티콘(이모지)는 제외하고, 채팅으로 많이 쓰는 이모티콘을 사용할 것 [예시: ㅎㅎ, ^^, :), ㅠㅠ]""",
+        "USE_GEMINI": False
+    }
+    
+    # 1. 파일이 없으면 기본 양식으로 생성 (사용자 가이드 역할)
+    if not os.path.exists(file_path):
+        try:
+            content = (
+                "# Gemini API 설정 파일\n"
+                "# API 키를 입력하고 USE_GEMINI를 True로 변경하면 AI 댓글 기능이 활성화됩니다.\n"
+                f"GEMINI_API_KEY = ''\n"
+                f"GEMINI_PROMPT = \"\"\"{default_settings['GEMINI_PROMPT']}\"\"\"\n"
+                f"USE_GEMINI = False\n"
+            )
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+        except Exception as e:
+            print(f"⚠️ 설정 파일 생성 실패: {e}")
+            return default_settings
+
+    # 2. 파일 로드
+    loaded_settings = {}
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            exec(f.read(), {}, loaded_settings)
+    except Exception as e:
+        print(f"⚠️ Gemini 설정 로드 실패: {e}")
+        return default_settings
+
+    # 기본값과 병합 (누락된 항목 방지)
+    default_settings.update(loaded_settings)
+    return default_settings
+
+# 전역 설정 변수 등록
+GEMINI_CONFIG = load_gemini_settings(path_gemini_setup)
+
+# 셀렉터에 본문 추출용 추가 (Gemini가 읽을 영역)
+SELECTORS["post_content"] = ".se-main-container, #postViewArea"

@@ -6,7 +6,7 @@ echo ========================================================
 echo     NAVER BLOG AUTOMATION BUILD START
 echo ========================================================
 
-:: 1. °¡»óÈ¯°æ Ã¼Å© ¹× È°¼ºÈ­ (°æ·Î¸¦ º¯¼ö¿¡ ´ã¾Æ ¾ÈÀüÇÏ°Ô Ã³¸®)
+:: 1. ï¿½ï¿½ï¿½ï¿½È¯ï¿½ï¿½ Ã¼Å© ï¿½ï¿½ È°ï¿½ï¿½È­ (ï¿½ï¿½Î¸ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï°ï¿½ Ã³ï¿½ï¿½)
 set "VENV_PATH=%~dp0system\venv\Scripts\activate.bat"
 
 if exist "%VENV_PATH%" (
@@ -18,17 +18,17 @@ if exist "%VENV_PATH%" (
     exit /b 1
 )
 
-:: 2. Á¾¼Ó¼º ¼³Ä¡
+:: 2. ï¿½ï¿½ï¿½Ó¼ï¿½ ï¿½ï¿½Ä¡
 echo Checking dependencies...
 python -m pip install --upgrade pip
-pip install PyQt6 selenium pyinstaller
+pip install PyQt6 selenium pyinstaller google-generativeai
 
-:: 3. ºôµå ÀÜÀç »èÁ¦
+:: 3. ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 echo Cleaning old files...
 if exist "build" rmdir /s /q "build"
 if exist "dist" rmdir /s /q "dist"
 
-:: 4. PyInstaller ½ÇÇà (ÁÙ¹Ù²Þ ±âÈ£ ^ µÚ¿¡ °ø¹é Àý´ë ±ÝÁö)
+:: 4. PyInstaller ï¿½ï¿½ï¿½ï¿½ (ï¿½Ù¹Ù²ï¿½ ï¿½ï¿½È£ ^ ï¿½Ú¿ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)
 echo Running PyInstaller...
 python -m PyInstaller --noconfirm --onedir --windowed --clean ^
  --add-data "system\settings;settings" ^
@@ -43,7 +43,7 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-:: 5. ¹èÆ÷¿ë ¼³Á¤ Æú´õ º¹»ç
+:: 5. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 echo Finalizing...
 if not exist "dist\gui_main\settings" mkdir "dist\gui_main\settings"
 copy "system\settings\*.txt" "dist\gui_main\settings\" >nul

@@ -92,7 +92,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("네이버 블로그 자동화 v3.0 (모듈화 완료)")
-        self.setFixedSize(650, 950)
+        self.setMinimumSize(1000, 700) # 가로를 넓게, 세로는 적당히 조정
+        self.resize(1100, 800)         # 초기 실행 크기
         self.session = None
         self.watcher = None
         
@@ -131,21 +132,33 @@ class MainWindow(QMainWindow):
         btn_reconnect = QPushButton("브라우저 재실행"); btn_reconnect.setFixedSize(110, 30); btn_reconnect.clicked.connect(lambda: self.start_action("init_session"))
         top_bar.addWidget(self.status_dot); top_bar.addWidget(self.status_label); top_bar.addStretch(); top_bar.addWidget(btn_reconnect)
         main_layout.addLayout(top_bar)
+        
+        content_layout = QHBoxLayout() # 가로 레이아웃 생성
 
         self.tabs = QTabWidget()
         
         # 분리된 탭 위젯들 생성
+        self.tabs = QTabWidget()
         self.like_tab = LikeTab(self)
         self.add_tab = AddTab(self)
         self.comment_tab = CommentTab(self)
-
         self.tabs.addTab(self.like_tab, "❤️ 이웃 공감")
         self.tabs.addTab(self.add_tab, "🤝 서이추 신청")
         self.tabs.addTab(self.comment_tab, "💬 이웃 댓글")
         
-        main_layout.addWidget(self.tabs)
-        self.log_text = QTextEdit(); self.log_text.setReadOnly(True)
-        main_layout.addWidget(self.log_text); self.setCentralWidget(central_widget)
+        content_layout.addWidget(self.tabs, stretch=0)
+        
+        # 3. 우측 로그창 영역
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        # 우측 로그창이 남는 공간을 모두 차지하도록 가중치를 1로 설정
+        content_layout.addWidget(self.log_text, stretch=1)
+        
+        # 메인 레이아웃에 가로 콘텐츠 레이아웃 추가
+        main_layout.addLayout(content_layout)
+        # --------------------------------------------------------
+
+        self.setCentralWidget(central_widget)
         self.update_sub_combo()
 
     def update_tab_labels(self):
@@ -202,6 +215,29 @@ class MainWindow(QMainWindow):
         self._write_txt(config.path_add_setup, "ADD_NEIGHBORS", config.ADD_NEIGHBOR_CONFIG)
 
     def save_comment_settings(self):
+        
+        # 1. AI 설정 값 가져오기
+        api_key = self.comment_tab.ai_key.text().strip()
+        prompt = self.comment_tab.ai_prompt.toPlainText().strip()
+        use_ai = True if api_key else False
+        
+        # 2. config 객체 실시간 업데이트
+        config.GEMINI_CONFIG["GEMINI_API_KEY"] = api_key
+        config.GEMINI_CONFIG["GEMINI_PROMPT"] = prompt
+        config.GEMINI_CONFIG["USE_GEMINI"] = use_ai
+        
+        # 3. setup_gemini.txt 파일로 저장
+        try:
+            content = [
+                f"GEMINI_API_KEY = '{api_key}'",
+                f"GEMINI_PROMPT = \"\"\"{prompt}\"\"\"",
+                f"USE_GEMINI = {use_ai}"
+            ]
+            with open(config.path_gemini_setup, 'w', encoding='utf-8') as f:
+                f.write("\n".join(content))
+            self.append_log(f"✅ AI 설정이 {os.path.basename(config.path_gemini_setup)}에 저장되었습니다.")
+        except Exception as e:
+            self.append_log(f"❌ AI 설정 저장 실패: {e}")
         config.NEIGHBOR_COMMENT_CONFIG["conditions"]["방문주기"] = int(self.comment_tab.comment_interval.text())
         self.sync_ui_to_config(self.comment_tab.inputs, config.NEIGHBOR_COMMENT_CONFIG)
         self._write_txt(config.path_comment_setup, "COMMENT", config.NEIGHBOR_COMMENT_CONFIG)

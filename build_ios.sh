@@ -23,7 +23,7 @@ fi
 # 2. 필수 라이브러리 및 빌드 도구 설치/업데이트
 echo -e "${BLUE}🛠️  빌드에 필요한 라이브러리 점검 중...${NC}"
 pip install --upgrade pip
-pip install PyQt6 selenium pyinstaller
+pip install PyQt6 selenium pyinstaller google-generativeai
 
 # 3. 이전 빌드 파일 및 캐시 청소
 echo -e "🧹 기존 빌드 폴더(build, dist) 및 spec 파일을 정리합니다..."
@@ -36,6 +36,7 @@ echo -e "${BLUE}🏗️  PyInstaller를 사용하여 실행 파일 빌드를 시
 python3 -m PyInstaller --noconfirm --onedir --windowed --clean \
     --add-data "system/settings:settings" \
     --add-data "system/bot_class:bot_class" \
+    --add-data "system/ai_helper.py:." \
     --collect-submodules "bot_class" \
     "system/gui_main.py"
 
