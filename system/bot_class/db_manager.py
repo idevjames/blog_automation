@@ -1,11 +1,12 @@
 import sqlite3
 import os
 from datetime import datetime
+import config
 
 class BlogDB:
     def __init__(self):
         # 실행 파일의 위치를 기준으로 DB 경로 설정
-        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "neighbor_history.db")
+        self.db_path = config.path_db
         self._init_db()
 
     def _init_db(self):

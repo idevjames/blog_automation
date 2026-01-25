@@ -12,7 +12,7 @@ import config
 from bot_class.session_manager import NaverSessionManager
 from bot_class.blog_likes_neighbor import BlogLikesNeighbor
 from bot_class.blog_add_neighbor import BlogAddNeighbor
-from bot_class.blog_comment_neighbor import BlogCommenter
+from bot_class.blog_comment_neighbor import BlogCommentNeighbor
 
 # 위에서 정의한 위젯 클래스들을 불러옵니다.
 from gui_tabs import LikeTab, AddTab, CommentTab
@@ -80,7 +80,7 @@ class ActionWorker(QThread):
                 bot.run(self.params['main_id'], self.params['sub_id'], self.params['cnt'], self.params['pg'])
                 self.finished_signal.emit("✅ 서이추 신청 작업 종료")
             elif self.action_type == "comment_task":
-                bot = BlogCommenter(self.session.driver)
+                bot = BlogCommentNeighbor(self.session.driver)
                 bot.worker = self
                 bot.run(self.params['cnt'], self.params['pg'])
                 self.finished_signal.emit("✅ 이웃 댓글 작업 종료")
@@ -243,17 +243,32 @@ class MainWindow(QMainWindow):
         self._write_txt(config.path_comment_setup, "COMMENT", config.NEIGHBOR_COMMENT_CONFIG)
 
     def run_like_task(self): 
-        self.save_like_settings()
-        self.start_action("like_task", {'cnt': int(self.like_tab.like_cnt.text()), 'pg': int(self.like_tab.like_pg.text())})
+        config.sync_all_configs() # 실행 직전 파일에서 설정을 새로 읽어옴
+        self.start_action("like_task", {
+            'cnt': int(self.like_tab.like_cnt.text()), 
+            'pg': int(self.like_tab.like_pg.text())
+        })
 
     def run_add_task(self): 
-        self.save_add_settings()
-        self.start_action("add_task", {'main_id': self.add_tab.combo_main.currentData(), 'sub_id': self.add_tab.combo_sub.currentData(), 'cnt': int(self.add_tab.add_cnt.text()), 'pg': int(self.add_tab.add_pg.text())})
+        config.sync_all_configs() # 실행 직전 파일에서 설정을 새로 읽어옴
+        self.start_action("add_task", {
+            'main_id': self.add_tab.combo_main.currentData(), 
+            'sub_id': self.add_tab.combo_sub.currentData(), 
+            'cnt': int(self.add_tab.add_cnt.text()), 
+            'pg': int(self.add_tab.add_pg.text())
+        })
 
     def run_comment_task(self):
-        self.save_comment_settings()
-        self.start_action("comment_task", {'cnt': int(self.comment_tab.comment_cnt.text()), 'pg': int(self.comment_tab.comment_pg.text())})
-
+        config.sync_all_configs() # 실행 직전 파일에서 설정을 새로 읽어옴
+        # UI에서 입력받은 방문주기 값 반영
+        try:
+            config.NEIGHBOR_COMMENT_CONFIG["conditions"]["방문주기"] = int(self.comment_tab.comment_interval.text())
+        except: pass
+        
+        self.start_action("comment_task", {
+            'cnt': int(self.comment_tab.comment_cnt.text()), 
+            'pg': int(self.comment_tab.comment_pg.text())
+        })
     def stop_task(self):
         if hasattr(self, 'worker') and self.worker.isRunning():
             self.worker.is_stopped = True

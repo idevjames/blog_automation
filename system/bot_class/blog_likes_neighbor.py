@@ -73,23 +73,42 @@ class BlogLikesNeighbor:
                 if fail_streak >= fail_limit:
                     break
                 
-                result = self._process_like_button(btn)
+                # [프로세스 리트라이 로직 시작]
+                # 개별 버튼에 대해 최대 3회까지 시도 (Backoff 적용)
+                process_success = False
+                for attempt in range(1, 4):
+                    result = self._process_like_button(btn)
+                    
+                    if result == "SUCCESS":
+                        clicked_total += 1
+                        fail_streak = 0
+                        print(f" > [{clicked_total}/{target_count}] ❤️ 공감 완료")
+                        process_success = True
+                        break # 리트라이 루프 탈출
+                        
+                    elif result == "ALREADY":
+                        print(" > [패스] 이미 공감한 글입니다.")
+                        process_success = True # 이미 된 것이므로 성공으로 간주하고 루프 탈출
+                        break
+                    
+                    else: # FAIL or ERROR
+                        # 실패 시 점점 길게 대기 (1초 -> 2초 -> 3초)
+                        backoff = float(attempt)
+                        print(f"   > [재시도] 클릭 미반영... {attempt}회차 대기 ({backoff}초)")
+                        
+                        # 중단 체크가 가능한 분할 대기
+                        for _ in range(int(backoff * 2)):
+                            if hasattr(self, 'worker') and self.worker.is_stopped: return
+                            import time
+                            time.sleep(0.5)
                 
-                if result == "SUCCESS":
-                    clicked_total += 1
-                    fail_streak = 0
-                    print(f" > [{clicked_total}/{target_count}] ❤️ 공감 완료")
-                    # [수정] reason 필수 및 config 참조
-                    smart_sleep(conf["delays"].get("작업간대기", (0.2, 0.5)), "다음 공감 버튼 클릭 전 휴식")
-                
-                elif result == "ALREADY":
-                    # 진짜 이미 공감했던 글 (처음부터 aria-pressed가 true였던 경우)
-                    print(" > [패스] 이미 공감한 글입니다.")
-                    continue
-                
-                else: # FAIL or ERROR
+                # 3회 시도 후에도 최종 실패한 경우
+                if not process_success:
                     fail_streak += 1
-                    print(f" > [실패] 클릭 실패 또는 오류 ({fail_streak}/{fail_limit})")
+                    print(f" > [실패] 3회 시도 모두 실패 ({fail_streak}/{fail_limit})")
+                else:
+                    # 최종 성공(또는 이미 공감) 시에만 다음 작업을 위한 휴식
+                    smart_sleep(conf["delays"].get("작업간대기", (0.2, 0.5)), "다음 공감 버튼 클릭 전 휴식")
             
             # 페이지 이동 로직
             if clicked_total < target_count and fail_streak < fail_limit:

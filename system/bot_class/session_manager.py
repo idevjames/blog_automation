@@ -2,19 +2,15 @@
 import os
 import sys
 import time
+import config
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-
-# 상위 폴더 경로 설정
-sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-import config
 from utils import smart_sleep
 
 class NaverSessionManager:
     def __init__(self):
-        # 절대 경로로 프로필 폴더 지정 (system/naver_profile)
-        self.base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
-        self.profile_path = os.path.join(self.base_dir, "naver_profile")
+            
+        self.profile_path = os.path.join(config.user_data_dir, "naver_profile")        
         
         # 폴더가 없으면 생성 (권한 문제 방지)
         if not os.path.exists(self.profile_path):

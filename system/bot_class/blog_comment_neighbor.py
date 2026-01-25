@@ -17,7 +17,7 @@ import config
 from utils import smart_sleep, smart_click, human_typing
 from db_manager import BlogDB
 
-class BlogCommenter:
+class BlogCommentNeighbor:
     def __init__(self, driver):
         self.driver = driver
         self.wait = WebDriverWait(self.driver, 10)

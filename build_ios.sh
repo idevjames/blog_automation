@@ -1,67 +1,76 @@
 #!/bin/bash
 
-# 색상 정의 (터미널 출력 가독성용)
+# 색상 정의 (Terminal Output Colors)
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}================================================${NC}"
-echo -e "${BLUE}   🚀 네이버 블로그 자동화 봇 빌드 시작 (macOS)   ${NC}"
+echo -e "${BLUE}   🚀 Naver Blog Bot Build Process (macOS)      ${NC}"
 echo -e "${BLUE}================================================${NC}"
 
-# 1. 가상환경 활성화 체크
+# 1. 환경 설정 체크 (setup_venv.command 연동)
+if [ ! -d "system/venv" ]; then
+    echo -e "${BLUE}[WARN] Environment not found. Running setup_venv.command...${NC}"
+    chmod +x setup_venv.command
+    ./setup_venv.command
+else
+    echo -e "${GREEN}[INFO] Environment (system/venv) detected. Skipping setup.${NC}"
+fi
+
+# 2. 가상환경 활성화
 if [ -f "system/venv/bin/activate" ]; then
-    echo -e "📦 system/venv 가상환경을 활성화합니다..."
+    echo -e "📦 Activating system/venv environment..."
     source system/venv/bin/activate
 else
-    echo -e "${RED}⚠️  가상환경(system/venv)을 찾을 수 없습니다!${NC}"
-    echo -e "현재 경로: $(pwd)"
+    echo -e "${RED}⚠️  Critical Error: Cannot find system/venv/bin/activate!${NC}"
     exit 1
 fi
 
-# 2. 필수 라이브러리 및 빌드 도구 설치/업데이트
-echo -e "${BLUE}🛠️  빌드에 필요한 라이브러리 점검 중...${NC}"
-pip install --upgrade pip
-pip install PyQt6 selenium pyinstaller google-generativeai
+# 3. 빌드 도구 점검
+echo -e "${BLUE}🛠️  Checking build tools...${NC}"
+pip install --upgrade pip > /dev/null
+pip install pyinstaller > /dev/null
 
-# 3. 이전 빌드 파일 및 캐시 청소
-echo -e "🧹 기존 빌드 폴더(build, dist) 및 spec 파일을 정리합니다..."
+# 4. 이전 빌드 캐시 정리
+echo -e "🧹 Cleaning up previous build (build, dist, spec)..."
 rm -rf build dist gui_main.spec
 
-# 4. PyInstaller 빌드 실행
-# --add-data "소스:목적지" 형식으로 내부 리소스 포함
-echo -e "${BLUE}🏗️  PyInstaller를 사용하여 실행 파일 빌드를 시작합니다...${NC}"
+# 5. PyInstaller 빌드 실행
+# 소스 코드는 system 내부에 있지만, 실행 시 외부 user_data를 바라봅니다.
+echo -e "${BLUE}🏗️  Starting PyInstaller build process...${NC}"
 
 python3 -m PyInstaller --noconfirm --onedir --windowed --clean \
     --add-data "system/bot_class:bot_class" \
     --add-data "system/ai_helper.py:." \
-    --collect-submodules "bot_class" \
     "system/gui_main.py"
 
-# 5. [핵심] 실제 사용자가 수정할 외부 설정 폴더 구성
-# 빌드된 앱 내부의 settings는 초기값이 되고, 
-# 앱 옆에 복사된 이 settings 폴더의 파일들이 실제 저장/수정 대상이 됩니다.
-echo -e "🚚 사용자용 외부 설정 파일 폴더를 구성합니다..."
-mkdir -p dist/settings
-rsync -av --exclude='setup_gemini.txt' system/settings/*.txt dist/settings/
+# 6. [핵심] 사용자 데이터 폴더(user_data) 구성
+# 배포판 루트에 user_data 폴더를 만들고 초기 설정 파일들을 복사합니다.
+echo -e "🚚 Organizing 'user_data' folder for distribution..."
+mkdir -p dist/user_data/settings
+mkdir -p dist/user_data/naver_profile
 
-echo -e "${GREEN}✅ setup_gemini.txt를 제외한 설정 파일 복사 완료!${NC}"
+# 초기 설정 .txt 파일 복사 (setup_gemini.txt 포함 여부는 선택)
+if [ -d "system/settings" ]; then
+    cp system/settings/*.txt dist/user_data/settings/
+    echo -e "${GREEN}✅ Default settings copied to user_data/settings.${NC}"
+fi
 
-# 6. 추가 배포 파일 복사 (README, 실행 스크립트 등)
-echo -e "📝 추가 배포 파일(README, command) 복사 중..."
+# 7. 추가 배포 파일 복사
+echo -e "📝 Copying README and setup scripts..."
 [ -f "README.md" ] && cp "README.md" dist/
-[ -f "run.command" ] && cp "run.command" dist/
+[ -f "setup_venv.command" ] && cp "setup_venv.command" dist/
 
-# 7. 결과 확인
+# 8. 결과 확인
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}================================================${NC}"
-    echo -e "${GREEN}   ✅ 모든 빌드 과정이 성공적으로 완료되었습니다!   ${NC}"
-    echo -e "${GREEN}   📂 dist 폴더 내 패키지를 압축하여 배포하세요.      ${NC}"
-    echo -e "${GREEN}================================================${NC}"
-    # 결과 폴더 열기
+    echo -e "${GREEN}   ✅ Build completed successfully!             ${NC}"
+    echo -e "${GREEN}   📂 Copy the 'user_data' folder to update.    ${NC}"
+    echo -e "================================================${NC}"
     open dist/
 else
-    echo -e "${RED}❌ 빌드 과정 중 오류가 발생했습니다.${NC}"
+    echo -e "${RED}❌ Error occurred during the build process.${NC}"
     exit 1
 fi

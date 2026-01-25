@@ -6,14 +6,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# 상위 폴더(system)의 모듈을 불러오기 위한 경로 설정
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-if current_dir not in sys.path:
-    sys.path.append(current_dir)
-
 import config
 from utils import smart_sleep, smart_click, human_typing
+from utils import human_scroll_to_ratio
 
 class BlogAddNeighbor:
     def __init__(self, driver):
@@ -472,8 +467,8 @@ class BlogAddNeighbor:
             WebDriverWait(self.driver, 5).until(EC.frame_to_be_available_and_switch_to_it((By.ID, "mainFrame")))
             
             # 스크롤 수행
-            scroll_ratio = conf_delay.get("스크롤최대비율", 0.8)
-            self.driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight * {scroll_ratio});")
+            scroll_ratio = conf_delay.get("스크롤최대비율", 0.5)
+            human_scroll_to_ratio(self.driver, scroll_ratio)
             smart_sleep(conf_delay.get("스크롤대기", (0.5, 1.0)), "공감/댓글 영역 노출을 위한 스크롤 대기")
 
             try:
