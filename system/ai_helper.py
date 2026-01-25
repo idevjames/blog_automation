@@ -33,7 +33,7 @@ class GeminiHelper:
         {base_prompt}
 
         [게시글 본문]
-        {post_content[:1000]}
+        {post_content[:500]}
         """
 
         try:

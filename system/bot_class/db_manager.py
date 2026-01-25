@@ -5,7 +5,7 @@ import config
 
 class BlogDB:
     def __init__(self):
-        # 실행 파일의 위치를 기준으로 DB 경로 설정
+        # 실행 파일 위치 기준 DB 경로 설정
         self.db_path = config.path_db
         self._init_db()
 
@@ -13,16 +13,37 @@ class BlogDB:
         """데이터베이스 및 테이블 초기화"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            # blog_id: 이웃 아이디 (PK)
-            # nickname: 이웃 닉네임
-            # last_comment_date: 마지막으로 댓글을 성공한 날짜/시간 (TEXT)
-            # total_count: 누적 댓글 성공 횟수
+            
+            # 1. 이웃 댓글 관리 테이블 (기존 유지)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS neighbor_comments (
                     blog_id TEXT PRIMARY KEY,
                     nickname TEXT,
                     last_comment_date TEXT,
                     total_count INTEGER DEFAULT 0
+                )
+            ''')
+
+            # 2. 알림 중단점 관리 (수정됨)
+            # id: nickname_type_content 조합의 고유키
+            # save_date 제거, 컬럼 분리 저장
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS sync_checkpoints (
+                    id TEXT PRIMARY KEY,
+                    nickname TEXT,
+                    type TEXT,
+                    content TEXT
+                )
+            ''')
+
+            # 3. 이웃 활동 통계 (수정됨)
+            # last_update 제거, 답글(reply) 컬럼 추가
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS neighbor_stats (
+                    nickname TEXT PRIMARY KEY,
+                    total_likes INTEGER DEFAULT 0,
+                    total_comments INTEGER DEFAULT 0,
+                    total_reply INTEGER DEFAULT 0
                 )
             ''')
             conn.commit()
@@ -34,17 +55,11 @@ class BlogDB:
             cursor.execute("SELECT last_comment_date FROM neighbor_comments WHERE blog_id = ?", (blog_id,))
             row = cursor.fetchone()
             
-            # 1. 기록이 없으면 첫 방문이므로 무조건 가능
             if not row or not row[0]:
                 return True
             
-            # 2. 날짜 계산 (시간 제외한 '날짜' 기준으로만 계산)
             last_date_obj = datetime.strptime(row[0], '%Y-%m-%d %H:%M:%S').date()
-            today_obj = datetime.now().date()
-            
-            days_passed = (today_obj - last_date_obj).days
-            
-            # 설정한 주기보다 지났거나 같으면 True 반환 (예: 주기 3일인데 3일 지났으면 가능)
+            days_passed = (datetime.now().date() - last_date_obj).days
             return days_passed >= interval_days
 
     def save_comment_success(self, blog_id, nickname):
@@ -52,7 +67,6 @@ class BlogDB:
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            # 기록이 있으면 업데이트, 없으면 삽입 (UPSERT)
             cursor.execute('''
                 INSERT INTO neighbor_comments (blog_id, nickname, last_comment_date, total_count)
                 VALUES (?, ?, ?, 1)
@@ -60,4 +74,57 @@ class BlogDB:
                     last_comment_date = ?, 
                     total_count = total_count + 1
             ''', (blog_id, nickname, now_str, now_str))
+            conn.commit()
+
+    # --- [추가/수정된 메서드] ---
+
+    def get_last_checkpoints(self, limit=50):
+        """최근 저장된 중단점 ID 목록 조회"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # 최근 저장된 순서대로 조회 (ROWID 활용)
+            cursor.execute("SELECT id FROM sync_checkpoints ORDER BY ROWID DESC LIMIT ?", (limit,))
+            rows = cursor.fetchall()
+            return [r[0] for r in rows]
+
+    def get_all_neighbor_stats(self):
+        """모든 이웃 통계 조회"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM neighbor_stats")
+            # 딕셔너리 형태로 반환
+            columns = [desc[0] for desc in cursor.description]
+            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def update_sync_data(self, stats_map, checkpoints_list):
+        """분석된 통계 및 중단점 일괄 업데이트"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            # 1. 중단점 저장 (INSERT OR IGNORE로 중복 방지)
+            for cp in checkpoints_list:
+                cursor.execute('''
+                    INSERT OR IGNORE INTO sync_checkpoints (id, nickname, type, content)
+                    VALUES (?, ?, ?, ?)
+                ''', (cp['id'], cp['nick'], cp['type'], cp['content']))
+
+            # 2. 통계 업데이트 (UPSERT)
+            for nick, counts in stats_map.items():
+                likes = counts.get('like', 0)
+                comments = counts.get('comment', 0)
+                replies = counts.get('reply', 0)
+
+                # 전부 0인 경우 저장하지 않음 (요청사항 반영)
+                if likes == 0 and comments == 0 and replies == 0:
+                    continue
+
+                cursor.execute('''
+                    INSERT INTO neighbor_stats (nickname, total_likes, total_comments, total_reply)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(nickname) DO UPDATE SET 
+                        total_likes = total_likes + ?,
+                        total_comments = total_comments + ?,
+                        total_reply = total_reply + ?
+                ''', (nick, likes, comments, replies, likes, comments, replies))
+            
             conn.commit()

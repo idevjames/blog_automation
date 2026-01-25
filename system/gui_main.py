@@ -13,9 +13,10 @@ from bot_class.session_manager import NaverSessionManager
 from bot_class.blog_likes_neighbor import BlogLikesNeighbor
 from bot_class.blog_add_neighbor import BlogAddNeighbor
 from bot_class.blog_comment_neighbor import BlogCommentNeighbor
+from bot_class.blog_smart_neighbor_management import BlogSmartNeighborManagement
 
 # 위에서 정의한 위젯 클래스들을 불러옵니다.
-from gui_tabs import LikeTab, AddTab, CommentTab
+from gui_tabs import LikeTab, AddTab, CommentTab, SmartNeighborManagementTab
 
 class GuiLogger(QObject):
     log_signal = pyqtSignal(str)
@@ -48,6 +49,7 @@ class SessionWatcher(QThread):
 class ActionWorker(QThread):
     finished_signal = pyqtSignal(object) 
     log_signal = pyqtSignal(str)         
+    ranking_signal = pyqtSignal(list) # 랭킹 데이터 전송용 시그널 추가
 
     def __init__(self, action_type, session=None, params=None):
         super().__init__()
@@ -58,8 +60,9 @@ class ActionWorker(QThread):
 
     def run(self):
         try:
-            if self.action_type in ["like_task", "add_task", "comment_task"]:
+            if self.action_type in ["like_task", "add_task", "comment_task", "smart_neighbor_management_task"]:
                 driver = self.session.driver
+                # 창 정리
                 while len(driver.window_handles) > 1:
                     driver.switch_to.window(driver.window_handles[-1])
                     driver.close()
@@ -84,6 +87,12 @@ class ActionWorker(QThread):
                 bot.worker = self
                 bot.run(self.params['cnt'], self.params['pg'])
                 self.finished_signal.emit("✅ 이웃 댓글 작업 종료")
+            elif self.action_type == "smart_neighbor_management_task":
+                bot = BlogSmartNeighborManagement(self.session.driver)
+                bot.worker = self
+                bot.run(self.params)
+                self.finished_signal.emit("✅ 스마트 이웃 관리 작업 종료")
+                
         except Exception as e:
             self.log_signal.emit(f"❌ 오류: {str(e)}")
             self.finished_signal.emit(None)
@@ -91,15 +100,19 @@ class ActionWorker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("네이버 블로그 자동화 v3.0 (모듈화 완료)")
-        self.setMinimumSize(1000, 700) # 가로를 넓게, 세로는 적당히 조정
-        self.resize(1100, 800)         # 초기 실행 크기
+        self.setWindowTitle("네이버 블로그 자동화 v3.0")
+        self.setMinimumSize(1000, 700)
+        self.resize(1100, 800)
         self.session = None
         self.watcher = None
         
         self.total_like_success = 0
         self.total_add_success = 0
         self.total_comment_success = 0
+        
+        self.smart_like_success = 0
+        self.smart_ai_success = 0
+        self.smart_normal_success = 0
         
         self.gui_logger = GuiLogger()
         self.gui_logger.log_signal.connect(self.append_log)
@@ -114,8 +127,25 @@ class MainWindow(QMainWindow):
             QWidget { background-color: #1E1E1E; color: #D4D4D4; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; }
             QGroupBox { font-weight: bold; border: 1px solid #333333; margin-top: 10px; color: #AAAAAA; padding-top: 10px; }
             QTabWidget::pane { border: 1px solid #333333; background: #252526; }
-            QTabBar::tab { background: #2D2D2D; color: #888888; padding: 10px; min-width: 120px; }
-            QTabBar::tab:selected { background: #252526; color: #2DB400; border-bottom: 2px solid #2DB400; }
+            QTabBar::tab { 
+                background: #2D2D2D; 
+                color: #888888; 
+                padding: 5px; 
+                min-width: 200px;   /* 너비를 조금 더 넓게 설정 */
+                min-height: 50px;   /* 줄바꿈을 감당할 수 있도록 높이 확보 */
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected { 
+                background: #252526; 
+                color: #2DB400; 
+                border-bottom: 2px solid #2DB400; 
+                font-weight: bold;
+            }
+            QTabBar::tab:at(3) { 
+                min-width: 190px; 
+            }
             QLineEdit, QComboBox, QTextEdit { background-color: #3C3C3C; border: 1px solid #555555; color: white; padding: 4px; }
             QPushButton#action_btn { background-color: #2DB400; color: white; font-weight: bold; font-size: 15px; border-radius: 6px; }
             QPushButton#stop_btn { background-color: #C13535; color: white; font-weight: bold; font-size: 15px; border-radius: 6px; }
@@ -133,46 +163,61 @@ class MainWindow(QMainWindow):
         top_bar.addWidget(self.status_dot); top_bar.addWidget(self.status_label); top_bar.addStretch(); top_bar.addWidget(btn_reconnect)
         main_layout.addLayout(top_bar)
         
-        content_layout = QHBoxLayout() # 가로 레이아웃 생성
+        content_layout = QHBoxLayout()
 
-        self.tabs = QTabWidget()
-        
-        # 분리된 탭 위젯들 생성
         self.tabs = QTabWidget()
         self.like_tab = LikeTab(self)
         self.add_tab = AddTab(self)
         self.comment_tab = CommentTab(self)
+        self.smart_tab = SmartNeighborManagementTab(self)
         self.tabs.addTab(self.like_tab, "❤️ 이웃 공감")
         self.tabs.addTab(self.add_tab, "🤝 서이추 신청")
         self.tabs.addTab(self.comment_tab, "💬 이웃 댓글")
+        self.tabs.addTab(self.smart_tab, "⭐ 스마트 관리")
         
         content_layout.addWidget(self.tabs, stretch=0)
         
-        # 3. 우측 로그창 영역
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        # 우측 로그창이 남는 공간을 모두 차지하도록 가중치를 1로 설정
         content_layout.addWidget(self.log_text, stretch=1)
         
-        # 메인 레이아웃에 가로 콘텐츠 레이아웃 추가
         main_layout.addLayout(content_layout)
-        # --------------------------------------------------------
-
         self.setCentralWidget(central_widget)
         self.update_sub_combo()
 
     def update_tab_labels(self):
-        self.tabs.setTabText(0, f"❤️ 이웃 공감 (+{self.total_like_success})")
-        self.tabs.setTabText(1, f"🤝 서이추 신청 (+{self.total_add_success})")
-        self.tabs.setTabText(2, f"💬 이웃 댓글 (+{self.total_comment_success})")
+        self.tabs.setTabText(0, f"❤️ 이웃 공감\n(+{self.total_like_success})")
+        self.tabs.setTabText(1, f"🤝 서이추 신청\n (+{self.total_add_success})")
+        self.tabs.setTabText(2, f"💬 이웃 댓글\n(+{self.total_comment_success})")
+        self.tabs.setTabText(3, f"⭐ 스마트 이웃 관리\n(❤️{self.smart_like_success}🤖{self.smart_ai_success}💬{self.smart_normal_success})")
 
     def append_log(self, text):
-        self.log_text.append(text); self.log_text.moveCursor(QTextCursor.MoveOperation.End)
-        if "❤️ 공감 완료" in text: self.total_like_success += 1; self.update_tab_labels()
-        elif "🎉 이웃 신청 완료!" in text: self.total_add_success += 1; self.update_tab_labels()
-        elif "이웃에게 댓글작성 완료!" in text: self.total_comment_success += 1; self.update_tab_labels()
-        QApplication.processEvents()
-
+        try:
+            self.log_text.append(text)
+            # 튕김 방지를 위한 안전한 커서 이동
+            cursor = self.log_text.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End, QTextCursor.MoveMode.MoveAnchor)
+            self.log_text.setTextCursor(cursor)
+            
+            if "❤️ 공감 완료" in text: self.total_like_success += 1
+            elif "🎉 이웃 신청 완료!" in text: self.total_add_success += 1
+            elif "💬 이웃에게 댓글작성 완료!" in text: self.total_comment_success += 1
+            
+            # [추가] 스마트 관리 전용 카운팅 (로그 텍스트 기반)
+            if "✅ [스마트관리] 공감 성공" in text: 
+                self.smart_like_success += 1
+            elif "✅ [스마트관리] AI댓글 성공" in text:
+                self.smart_ai_success += 1
+            elif "✅ [스마트관리] 일반댓글 성공" in text:
+                self.smart_normal_success += 1
+                
+            self.update_tab_labels()
+            
+            # 메인 스레드에서만 이벤트 처리 권장
+            QApplication.processEvents()
+        except Exception as e:
+            print(f"로그 오류: {e}")
+    
     def _add_config_row(self, form, input_dict, k, v):
         if isinstance(v, (tuple, list)):
             h = QHBoxLayout(); min_in = QLineEdit(str(v[0])); max_in = QLineEdit(str(v[1]))
@@ -215,42 +260,71 @@ class MainWindow(QMainWindow):
         self._write_txt(config.path_add_setup, "ADD_NEIGHBORS", config.ADD_NEIGHBOR_CONFIG)
 
     def save_comment_settings(self):
-        
-        # 1. AI 설정 값 가져오기
         api_key = self.comment_tab.ai_key.text().strip()
         prompt = self.comment_tab.ai_prompt.toPlainText().strip()
         use_ai = True if api_key else False
         
-        # 2. config 객체 실시간 업데이트
         config.GEMINI_CONFIG["GEMINI_API_KEY"] = api_key
         config.GEMINI_CONFIG["GEMINI_PROMPT"] = prompt
         config.GEMINI_CONFIG["USE_GEMINI"] = use_ai
         
-        # 3. setup_gemini.txt 파일로 저장
         try:
             content = [
                 f"GEMINI_API_KEY = '{api_key}'",
                 f"GEMINI_PROMPT = \"\"\"{prompt}\"\"\"",
                 f"USE_GEMINI = {use_ai}"
             ]
-            with open(config.path_gemini_setup, 'w', encoding='utf-8') as f:
-                f.write("\n".join(content))
-            self.append_log(f"✅ AI 설정이 {os.path.basename(config.path_gemini_setup)}에 저장되었습니다.")
-        except Exception as e:
-            self.append_log(f"❌ AI 설정 저장 실패: {e}")
+            with open(config.path_gemini_setup, 'w', encoding='utf-8') as f: f.write("\n".join(content))
+            self.append_log(f"✅ AI 설정이 저장되었습니다.")
+        except Exception as e: self.append_log(f"❌ AI 설정 저장 실패: {e}")
+        
         config.NEIGHBOR_COMMENT_CONFIG["conditions"]["방문주기"] = int(self.comment_tab.comment_interval.text())
         self.sync_ui_to_config(self.comment_tab.inputs, config.NEIGHBOR_COMMENT_CONFIG)
         self._write_txt(config.path_comment_setup, "COMMENT", config.NEIGHBOR_COMMENT_CONFIG)
 
+    def save_smart_settings(self, state):
+        """스마트 관리 설정 저장 (다른 탭과 동일 메커니즘)"""
+        # 1. UI 입력값을 config 객체에 동기화
+        self.sync_ui_to_config(self.smart_tab.inputs, config.SMART_NEIGHBOR_CONFIG)
+        
+        # 2. AI 활성화 상태 확인 및 저장
+        is_use = self.smart_tab.ai_toggle.isChecked()
+        api_key = config.GEMINI_CONFIG.get("GEMINI_API_KEY", "").strip()
+        prompt = config.GEMINI_CONFIG.get("GEMINI_PROMPT", "").strip()
+
+        if is_use and (not api_key or not prompt):
+            self.append_log("⚠️ 필수 설정 누락으로 AI를 활성화할 수 없습니다.")
+            self.smart_tab.ai_toggle.blockSignals(True)
+            self.smart_tab.ai_toggle.setChecked(False)
+            self.smart_tab.ai_toggle.blockSignals(False)
+            is_use = False
+
+        config.GEMINI_CONFIG["USE_GEMINI"] = is_use
+        
+        try:
+            # 3. 텍스트 파일로 영구 저장
+            self._write_txt(config.path_smart_neighbor_management_setup, "SMART_MANAGEMENT", config.SMART_NEIGHBOR_CONFIG)
+            
+            # AI 설정 파일 별도 저장
+            content = [
+                f"GEMINI_API_KEY = '{api_key}'",
+                f"GEMINI_PROMPT = \"\"\"{prompt}\"\"\"",
+                f"USE_GEMINI = {is_use}"
+            ]
+            with open(config.path_gemini_setup, 'w', encoding='utf-8') as f:
+                f.write("\n".join(content))
+            
+            self.smart_tab.refresh_ai_ui_status()
+            self.append_log("✅ 스마트 관리 설정 및 AI 상태가 저장되었습니다.")
+        except Exception as e:
+            self.append_log(f"❌ 설정 저장 실패: {e}")
+
     def run_like_task(self): 
-        config.sync_all_configs() # 실행 직전 파일에서 설정을 새로 읽어옴
-        self.start_action("like_task", {
-            'cnt': int(self.like_tab.like_cnt.text()), 
-            'pg': int(self.like_tab.like_pg.text())
-        })
+        config.sync_all_configs()
+        self.start_action("like_task", {'cnt': int(self.like_tab.like_cnt.text()), 'pg': int(self.like_tab.like_pg.text())})
 
     def run_add_task(self): 
-        config.sync_all_configs() # 실행 직전 파일에서 설정을 새로 읽어옴
+        config.sync_all_configs()
         self.start_action("add_task", {
             'main_id': self.add_tab.combo_main.currentData(), 
             'sub_id': self.add_tab.combo_sub.currentData(), 
@@ -259,17 +333,24 @@ class MainWindow(QMainWindow):
         })
 
     def run_comment_task(self):
-        config.sync_all_configs() # 실행 직전 파일에서 설정을 새로 읽어옴
-        # UI에서 입력받은 방문주기 값 반영
-        try:
-            config.NEIGHBOR_COMMENT_CONFIG["conditions"]["방문주기"] = int(self.comment_tab.comment_interval.text())
+        config.sync_all_configs()
+        try: config.NEIGHBOR_COMMENT_CONFIG["conditions"]["방문주기"] = int(self.comment_tab.comment_interval.text())
         except: pass
-        
-        self.start_action("comment_task", {
-            'cnt': int(self.comment_tab.comment_cnt.text()), 
-            'pg': int(self.comment_tab.comment_pg.text())
-        })
+        self.start_action("comment_task", {'cnt': int(self.comment_tab.comment_cnt.text()), 'pg': int(self.comment_tab.comment_pg.text())})
+            
+    def run_smart_neighbor_management_task(self):
+        config.sync_all_configs()
+        self.smart_tab.refresh_ai_ui_status()
+        params = {
+            'target_comment': int(self.smart_tab.target_comment.text()),
+            'start_pg': int(self.smart_tab.start_pg.text())
+        }
+        # [수정] 불필요한 파라미터 전달 최소화
+        self.start_action("smart_neighbor_management_task", params)
+
     def stop_task(self):
+        # 여기가 실행 안 되면 GUI가 얼어있는 것임.
+        self.append_log("\n🛑 중단 요청 접수됨... 확인") 
         if hasattr(self, 'worker') and self.worker.isRunning():
             self.worker.is_stopped = True
             self.append_log("\n🛑 중단 요청됨... (현재 단계 마무리 후 정지)")
@@ -284,7 +365,11 @@ class MainWindow(QMainWindow):
             self.append_log("❌ 브라우저 준비 필요"); return
         self.toggle_ui(False)
         self.worker = ActionWorker(action_type, self.session, params)
-        self.worker.log_signal.connect(self.append_log); self.worker.finished_signal.connect(self.on_action_finished); self.worker.start()
+        # 랭킹 데이터 수신 시그널 연결
+        self.worker.ranking_signal.connect(self.smart_tab.update_ranking_ui)
+        self.worker.log_signal.connect(self.append_log)
+        self.worker.finished_signal.connect(self.on_action_finished)
+        self.worker.start()
 
     def toggle_ui(self, enabled):
         self.tabs.tabBar().setEnabled(enabled)
@@ -293,6 +378,8 @@ class MainWindow(QMainWindow):
         self.comment_tab.c_base.setEnabled(enabled); self.comment_tab.c_adv.setEnabled(enabled)
         self.like_tab.btn_run.setEnabled(enabled); self.add_tab.btn_run.setEnabled(enabled); self.comment_tab.btn_run.setEnabled(enabled)
         self.like_tab.btn_stop.setEnabled(not enabled); self.add_tab.btn_stop.setEnabled(not enabled); self.comment_tab.btn_stop.setEnabled(not enabled)
+        # 스마트탭 UI 토글
+        self.smart_tab.btn_run.setEnabled(enabled); self.smart_tab.btn_stop.setEnabled(not enabled)
 
     def update_status_ui(self, status):
         colors = {0: "#ff4444", 1: "#FFFF00", 2: "#2db400"}

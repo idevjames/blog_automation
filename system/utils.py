@@ -21,7 +21,7 @@ def smart_sleep(range_tuple, reason):
         "공감 처리 결과가 서버에 반영되는지 확인 중"
     ]
     
-# 사유 출력
+    # 사유 출력
     if reason and reason not in exclude_reasons:
         # 너무 짧은 대기는 로그 생략 가능
         if wait_time > 0.5:
@@ -71,7 +71,6 @@ def human_scroll(driver, distance):
     amount = distance
         
     actions.scroll_by_amount(0, amount).perform()
-    print(f"   (🖱️ 물리 스크롤 이동: {amount}px)")
     
     
 def human_scroll_to_ratio(driver, scroll_ratio):
