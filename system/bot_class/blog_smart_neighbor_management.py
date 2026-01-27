@@ -107,7 +107,7 @@ class BlogSmartNeighborManagement:
             print(f"⚠️ [2단계 오류] {e}")
 
     def _phase_1_analysis(self):
-        """[Phase 1] 알림 분석 (중단점 발견 시 즉시 종료 및 데이터 갱신)"""
+        """[Phase 1] 알림 분석 (중단점 또는 UI 바닥 감지 시 종료)"""
         try:
             config.sync_all_configs()
             cond = config.SMART_NEIGHBOR_CONFIG.get("conditions", {})
@@ -126,65 +126,68 @@ class BlogSmartNeighborManagement:
             
             last_processed_index = 0
             new_count = 0
-            scroll_retry = 0
+            consecutive_empty_count = 0 # 연속으로 데이터 못 찾은 횟수 (Safety Net)
             
             # [핵심] 스캔 종료 여부를 판단하는 깃발
             is_scan_finished = False 
 
             print(f"\n📡 [1단계] 데이터 증분 수집 시작...")
 
-            while not is_scan_finished: # 깃발이 올라가면 루프 종료
+            while not is_scan_finished: 
                 if self.check_stopped(): return False
                 
                 # 1. 전체 카드 로드
                 all_cards = self.driver.find_elements(By.CSS_SELECTOR, "li.item__INKiv")
                 total_len = len(all_cards)
 
-                # 2. 이미 처리한 것 다음부터만 잘라서 가져옴 (증분 처리)
+                # 2. 증분 처리 (이미 처리한 인덱스 이후부터)
                 new_batch = all_cards[last_processed_index:]
 
-                # 3. 처리할 데이터가 없으면 스크롤
+                # ---------------------------------------------------------
+                # [분기 A] 새로운 배치가 없을 때 (스크롤 또는 종료 판단)
+                # ---------------------------------------------------------
                 if not new_batch:
-                    # [추가] "맨 위로" 버튼이 나타났는지 확인 (바닥 도달 여부)
-                    footer_buttons = self.driver.find_elements(By.CSS_SELECTOR, "div.scroll_top__YuIw9")
-                    if footer_buttons and footer_buttons[0].is_displayed():
-                        print(f"\n📍 [Endpoint] '맨 위로' 버튼 발견. 페이지 끝에 도달했습니다.")
+                    # (1) UI 바닥 체크: '맨 위로' 버튼이 있는지 확인
+                    try:
+                        footer_buttons = self.driver.find_elements(By.CSS_SELECTOR, "div.scroll_top__YuIw9")
+                        if footer_buttons and footer_buttons[0].is_displayed():
+                            print(f"\n🛑 [종료 사유] '맨 위로' 버튼(UI) 발견 -> 페이지 바닥 도착")
+                            is_scan_finished = True
+                            break
+                    except: pass
+
+                    # (2) UI가 안 보이면 연속 실패 카운트 증가
+                    consecutive_empty_count += 1
+                    
+                    # (3) 5회 연속 실패 시 강제 종료 (네트워크 이슈 등)
+                    if consecutive_empty_count >= 5:
+                        print(f"\n⚠️ [종료 사유] 5회 연속 데이터 로드 실패 -> 강제 종료 (네트워크 지연 등)")
                         is_scan_finished = True
                         break
 
+                    # (4) 아직 기회가 남았으면 스크롤 시도
                     scroll_dist = cond.get("스크롤보폭", 500)
                     load_delay = cond.get("데이터수집스크롤간격", (0.5, 0.8))
                     
                     human_scroll_distance(self.driver, scroll_dist)
                     smart_sleep(load_delay, "데이터 로딩 대기")
-                    
-                    new_total_len = len(self.driver.find_elements(By.CSS_SELECTOR, "li.item__INKiv"))
-                    if new_total_len > total_len:
-                        scroll_retry = 0
-                        continue
-                    else:
-                        # 요소 개수가 안 늘어나도 다시 한번 버튼 체크 (안전장치)
-                        footer_buttons = self.driver.find_elements(By.CSS_SELECTOR, "div.scroll_top__YuIw9")
-                        if footer_buttons and footer_buttons[0].is_displayed():
-                            is_scan_finished = True
-                            break
-                            
-                        scroll_retry += 1
-                        if scroll_retry >= 3:
-                            is_scan_finished = True
-                            break
+                    continue
 
-                # 4. 배치 분석 시작
+                # ---------------------------------------------------------
+                # [분기 B] 새로운 배치가 있을 때 (데이터 분석)
+                # ---------------------------------------------------------
+                consecutive_empty_count = 0 # 데이터 찾았으므로 카운트 리셋
+
                 for card in new_batch:
                     nick, act_type, content, fingerprint = self._get_item_fingerprint(card)
                     
                     if nick:
-                        # [중요] 중단점 발견 시
+                        # [조건 1] 중단점(Checkpoint) 발견 시 종료
                         if last_ids and fingerprint in last_ids:
-                            print(f"\n📍 [CheckPoint] 기존 중단점 도달: {nick}님 ({fingerprint})")
+                            print(f"\n🛑 [종료 사유] 기존 중단점 도달: {nick}님 ({fingerprint})")
                             print(f"   -> 더 이상 과거 데이터는 수집하지 않습니다.")
-                            is_scan_finished = True # 🚩 종료 플래그 세우기
-                            break # for문 탈출 -> 바로 while문 조건 체크로 이동
+                            is_scan_finished = True
+                            break # for문 탈출
 
                         # 데이터 수집
                         self.current_checkpoints.append({
@@ -202,7 +205,7 @@ class BlogSmartNeighborManagement:
                     
                     last_processed_index += 1
 
-                # for문을 빠져나왔을 때 플래그가 켜져있으면 while문도 즉시 종료
+                # 중단점을 만나서 for문을 나왔다면 while문도 종료
                 if is_scan_finished:
                     break
 
@@ -210,17 +213,16 @@ class BlogSmartNeighborManagement:
             # [데이터 정리 및 DB 저장 로직]
             # ---------------------------------------------------------
             
-            # [케이스 1] 새로운 데이터가 하나도 없을 때 (맨 위가 중단점일 때)
+            # [케이스 1] 새로운 데이터가 하나도 없을 때
             if new_count == 0:
                 print(f"\n ✅ 새로운 활동이 없습니다. (현재 최신 상태)")
-                # DB 업데이트 없이 랭킹만 보여주러 이동
             
             # [케이스 2] 새로운 데이터가 있을 때
             else:
                 # 1. 새로 찾은 거(앞) + 기존 거(뒤) 합쳐서 -> 앞에서 3개 자름
                 final_checkpoints = (self.current_checkpoints + old_checkpoints)[:3]
                 
-                # 2. DB 업데이트 (Stat 누적 + 중단점 교체)
+                # 2. DB 업데이트
                 self.db.update_sync_data(self.temp_neighbor_stats, final_checkpoints)
                 print(f"\n ✅ {new_count}건의 활동 데이터 반영 및 중단점 갱신 완료")
 

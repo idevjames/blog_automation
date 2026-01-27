@@ -59,7 +59,7 @@ def load_gemini_settings(file_path):
     if not os.path.exists(file_path):
         try:
             # 사용자가 수정하기 편하게 포맷팅하여 저장
-            content = f"GEMINI_API_KEY = ''\n\nGEMINI_PROMPT = \"\"\"{default_prompt}\"\"\"\n"
+            content = f"GEMINI_API_KEY = '  '\n\nGEMINI_PROMPT = \"\"\"{default_prompt}\"\"\"\n"
             with open(file_path, 'w', encoding='utf-8') as f: 
                 f.write(content)
         except Exception as e:
