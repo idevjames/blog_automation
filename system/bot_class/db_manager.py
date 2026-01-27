@@ -76,16 +76,18 @@ class BlogDB:
             ''', (blog_id, nickname, now_str, now_str))
             conn.commit()
 
-    # --- [추가/수정된 메서드] ---
-
-    def get_last_checkpoints(self, limit=50):
-        """최근 저장된 중단점 ID 목록 조회"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            # 최근 저장된 순서대로 조회 (ROWID 활용)
-            cursor.execute("SELECT id FROM sync_checkpoints ORDER BY ROWID DESC LIMIT ?", (limit,))
-            rows = cursor.fetchall()
-            return [r[0] for r in rows]
+    def get_last_checkpoints_details(self, limit=50):
+        """중단점의 상세 데이터(ID, 닉네임, 타입, 내용) 리스트를 가져옵니다."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # 결과를 딕셔너리 형태로 받기 위해 row_factory 설정
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, nickname as nick, type, content FROM sync_checkpoints")
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"❌ [DB] 중단점 상세 로드 오류: {e}")
+            return []
 
     def get_all_neighbor_stats(self):
         """모든 이웃 통계 조회"""
@@ -97,34 +99,41 @@ class BlogDB:
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
     def update_sync_data(self, stats_map, checkpoints_list):
-        """분석된 통계 및 중단점 일괄 업데이트"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        """분석된 통계 업데이트 및 중단점 갈아치우기"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
 
-            # 1. 중단점 저장 (INSERT OR IGNORE로 중복 방지)
-            for cp in checkpoints_list:
-                cursor.execute('''
-                    INSERT OR IGNORE INTO sync_checkpoints (id, nickname, type, content)
-                    VALUES (?, ?, ?, ?)
-                ''', (cp['id'], cp['nick'], cp['type'], cp['content']))
+                # 1. 중단점 테이블 초기화 (항상 최신 3개만 유지하기 위해 싹 비움)
+                cursor.execute("DELETE FROM sync_checkpoints")
+                
+                # 2. 새로운 중단점(최대 3개) 삽입
+                for cp in checkpoints_list:
+                    cursor.execute('''
+                        INSERT INTO sync_checkpoints (id, nickname, type, content)
+                        VALUES (?, ?, ?, ?)
+                    ''', (cp['id'], cp['nick'], cp['type'], cp['content']))
 
-            # 2. 통계 업데이트 (UPSERT)
-            for nick, counts in stats_map.items():
-                likes = counts.get('like', 0)
-                comments = counts.get('comment', 0)
-                replies = counts.get('reply', 0)
+                # 3. 이웃 통계 업데이트 (누적 합산)
+                for nick, counts in stats_map.items():
+                    likes = counts.get('like', 0)
+                    comments = counts.get('comment', 0)
+                    replies = counts.get('reply', 0)
 
-                # 전부 0인 경우 저장하지 않음 (요청사항 반영)
-                if likes == 0 and comments == 0 and replies == 0:
-                    continue
+                    if likes == 0 and comments == 0 and replies == 0:
+                        continue
 
-                cursor.execute('''
-                    INSERT INTO neighbor_stats (nickname, total_likes, total_comments, total_reply)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT(nickname) DO UPDATE SET 
-                        total_likes = total_likes + ?,
-                        total_comments = total_comments + ?,
-                        total_reply = total_reply + ?
-                ''', (nick, likes, comments, replies, likes, comments, replies))
-            
-            conn.commit()
+                    cursor.execute('''
+                        INSERT INTO neighbor_stats (nickname, total_likes, total_comments, total_reply)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(nickname) DO UPDATE SET 
+                            total_likes = total_likes + ?,
+                            total_comments = total_comments + ?,
+                            total_reply = total_reply + ?
+                    ''', (nick, likes, comments, replies, likes, comments, replies))
+                
+                conn.commit()
+            return True
+        except Exception as e:
+            print(f"❌ [DB] 데이터 업데이트 오류: {e}")
+            return False

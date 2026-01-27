@@ -7,7 +7,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 import config
-from utils import smart_sleep, smart_click
+from utils import smart_sleep, smart_click, human_scroll_element
 
 class BlogLikesNeighbor:
     def __init__(self, driver):
@@ -147,7 +147,7 @@ class BlogLikesNeighbor:
     def _process_like_button(self, btn):
         conf_delay = config.LIKES_NEIGHBOR_CONFIG["delays"]
         try:
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
+            human_scroll_element(self.driver, btn)
             # [수정] reason 필수 및 config 참조
             smart_sleep(conf_delay.get("클릭전대기", (0.1, 0.3)), "공감 버튼 클릭 전 실제 사람처럼 대기")
 

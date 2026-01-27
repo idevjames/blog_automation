@@ -63,7 +63,7 @@ def human_typing(element, text):
         # 글자 사이의 간격을 랜덤하게 줘서 기계적인 느낌을 없앰
         time.sleep(random.uniform(0.05, 0.15))
         
-def human_scroll(driver, distance):
+def human_scroll_distance(driver, distance):
     """마우스 휠을 굴리는 물리 스크롤 (자바스크립트 X)"""
     actions = ActionChains(driver)
     
@@ -72,6 +72,39 @@ def human_scroll(driver, distance):
         
     actions.scroll_by_amount(0, amount).perform()
     
+def human_scroll_element(driver, target_element):
+    """
+    특정 요소가 화면 중앙 근처에 오도록 마우스 휠을 굴리는 물리 스크롤
+    자바스크립트(scrollIntoView)를 사용하지 않고 위치를 계산하여 ActionChains로 수행
+    """
+    try:
+        # 1. 브라우저의 현재 뷰포트 높이와 현재 스크롤 위치 가져오기
+        viewport_height = driver.execute_script("return window.innerHeight;")
+        current_scroll_y = driver.execute_script("return window.pageYOffset;")
+        
+        # 2. 대상 요소의 절대 Y 좌표 위치 가져오기
+        target_y = target_element.location['y']
+        
+        # 3. 요소를 화면의 중앙(약 30% ~ 50% 지점)에 위치시키기 위한 목표 지점 계산
+        # 너무 정확하면 기계 같으므로 랜덤 오차를 줌
+        offset = viewport_height * random.uniform(0.3, 0.5)
+        scroll_distance = target_y - current_scroll_y - offset
+        
+        # 4. ActionChains를 사용하여 물리적 휠 스크롤 수행
+        actions = ActionChains(driver)
+        
+        # 한 번에 굴리는 양이 너무 많으면 여러 번으로 나누어 굴림 (더 인간적임)
+        steps = random.randint(2, 4)
+        distance_per_step = scroll_distance / steps
+        
+        for _ in range(steps):
+            actions.scroll_by_amount(0, int(distance_per_step)).perform()
+            time.sleep(random.uniform(0.1, 0.3)) # 휠 굴리는 사이의 짧은 대기
+            
+        return True
+    except Exception as e:
+        print(f"   (⚠️ 물리 스크롤 실패 : {e})")
+        return False
     
 def human_scroll_to_ratio(driver, scroll_ratio):
     """목표 비율까지 휠을 여러 번 나눠서 굴림 (가장 안전)"""
