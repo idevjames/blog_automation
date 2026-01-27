@@ -145,6 +145,13 @@ class BlogSmartNeighborManagement:
 
                 # 3. 처리할 데이터가 없으면 스크롤
                 if not new_batch:
+                    # [추가] "맨 위로" 버튼이 나타났는지 확인 (바닥 도달 여부)
+                    footer_buttons = self.driver.find_elements(By.CSS_SELECTOR, "div.scroll_top__YuIw9")
+                    if footer_buttons and footer_buttons[0].is_displayed():
+                        print(f"\n📍 [Endpoint] '맨 위로' 버튼 발견. 페이지 끝에 도달했습니다.")
+                        is_scan_finished = True
+                        break
+
                     scroll_dist = cond.get("스크롤보폭", 500)
                     load_delay = cond.get("데이터수집스크롤간격", (0.5, 0.8))
                     
@@ -156,12 +163,16 @@ class BlogSmartNeighborManagement:
                         scroll_retry = 0
                         continue
                     else:
+                        # 요소 개수가 안 늘어나도 다시 한번 버튼 체크 (안전장치)
+                        footer_buttons = self.driver.find_elements(By.CSS_SELECTOR, "div.scroll_top__YuIw9")
+                        if footer_buttons and footer_buttons[0].is_displayed():
+                            is_scan_finished = True
+                            break
+                            
                         scroll_retry += 1
                         if scroll_retry >= 3:
-                            print(f"\n📍 [Endpoint] 더 이상 불러올 알림이 없습니다. (페이지 끝)")
-                            is_scan_finished = True # 종료 플래그 ON
+                            is_scan_finished = True
                             break
-                        continue
 
                 # 4. 배치 분석 시작
                 for card in new_batch:
@@ -257,11 +268,15 @@ class BlogSmartNeighborManagement:
                     if rank_data.get('c', 0) > 0:
                         if self.db.can_I_comment(blog_id, interval_days):
                             action_type = "AI_COMMENT" if config.GEMINI_CONFIG.get("USE_GEMINI") else "NORMAL_COMMENT"
-                        else: action_type = "LIKE_ONLY"
+                        else: 
+                            print(f"   > [이미 댓글 작성] {nickname}의 게시글은 이미 {interval_days}일 이내에 댓글을 작성했습니다.")
+                            action_type = "LIKE_ONLY"
                     elif rank_data.get('r', 0) > 0:
                         if self.db.can_I_comment(blog_id, interval_days):
                             action_type = "NORMAL_COMMENT"
-                        else: action_type = "LIKE_ONLY"
+                        else: 
+                            print(f"   > [이미 댓글 작성] {nickname}의 게시글은 이미 {interval_days}일 이내에 댓글을 작성했습니다.")
+                            action_type = "LIKE_ONLY"
                     else: action_type = "LIKE_ONLY"
                 else:
                     stats_str = f"{nickname}(데이터없음)"
