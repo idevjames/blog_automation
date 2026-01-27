@@ -1,62 +1,89 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 cd /d "%~dp0"
 
-echo ========================================================
-echo     NAVER BLOG AUTOMATION BUILD START (WINDOWS)
-echo ========================================================
+echo ================================================
+echo    Naver Blog Bot Build Process (Windows)
+echo ================================================
 
-:: 1. Check and Activate Virtual Environment
-set "VENV_PATH=%~dp0system\venv\Scripts\activate.bat"
-
-if exist "%VENV_PATH%" (
-    echo Activating virtual environment...
-    call "%VENV_PATH%"
+if not exist "system\venv" (
+    echo [WARN] Environment not found. Checking setup_venv.bat...
+    if exist "setup_venv.bat" (
+        call setup_venv.bat
+    ) else (
+        echo [ERROR] setup_venv.bat not found. Please set up venv first.
+        pause
+        exit /b 1
+    )
 ) else (
-    echo [ERROR] Virtual environment not found at: "%VENV_PATH%"
+    echo [INFO] Environment venv detected. Skipping setup.
+)
+
+if exist "system\venv\Scripts\activate.bat" (
+    echo [INFO] Activating system environment...
+    call system\venv\Scripts\activate.bat
+) else (
+    echo [ERROR] Critical Error: Cannot find activate.bat!
     pause
     exit /b 1
 )
 
-:: 2. Install Dependencies
-echo Checking dependencies...
-python -m pip install --upgrade pip
-pip install PyQt6 selenium pyinstaller google-generativeai
+echo [INFO] Checking build tools...
+python -m pip install --upgrade pip >nul 2>&1
+pip install pyinstaller >nul 2>&1
 
-:: 3. Clean Previous Build Files
-echo Cleaning old files...
-if exist "build" rmdir /s /q "build"
-if exist "dist" rmdir /s /q "dist"
+echo [INFO] Cleaning up previous build...
+if exist build rd /s /q build
+if exist dist rd /s /q dist
+if exist NaverBlogBot.spec del NaverBlogBot.spec
 
-:: 4. Run PyInstaller
-:: [Note] Removed --add-data for settings to keep it external
-echo Running PyInstaller...
+echo [INFO] Starting PyInstaller build process...
 python -m PyInstaller --noconfirm --onedir --windowed --clean ^
- --add-data "system\bot_class;bot_class" ^
- --add-data "system\ai_helper.py;." ^
- --collect-submodules "bot_class" ^
- "system\gui_main.py"
+    --name "NaverBlogBot" ^
+    --add-data "system/bot_class;bot_class" ^
+    "system/gui_main.py"
 
-if %ERRORLEVEL% neq 0 (
-    echo.
-    echo [BUILD FAILED] Check the errors above.
-    pause
-    exit /b 1
+echo [INFO] Moving files to dist root...
+xcopy /e /y /q "dist\NaverBlogBot\*" "dist\"
+rd /s /q "dist\NaverBlogBot"
+
+echo [INFO] Organizing user_data folder...
+set "DIST_USER_DATA=dist\user_data"
+if not exist "%DIST_USER_DATA%\settings" mkdir "%DIST_USER_DATA%\settings"
+if not exist "%DIST_USER_DATA%\naver_profile" mkdir "%DIST_USER_DATA%\naver_profile"
+
+if exist "system\settings" (
+    xcopy /y /q "system\settings\*.txt" "%DIST_USER_DATA%\settings\"
+    echo [INFO] Copied settings from system\settings.
+) else if exist "user_data\settings" (
+    xcopy /y /q "user_data\settings\*.txt" "%DIST_USER_DATA%\settings\"
+    echo [INFO] Copied settings from user_data\settings.
 )
 
-:: 5. Configure External Settings Folder
-echo Finalizing...
-if not exist "dist\gui_main\settings" mkdir "dist\gui_main\settings"
+if exist "%DIST_USER_DATA%\settings\setup_gemini.txt" (
+    del /f /q "%DIST_USER_DATA%\settings\setup_gemini.txt"
+    echo [SECURE] Removed setup_gemini.txt
+)
 
-:: [Note] Copy all txt files, then delete setup_gemini.txt to protect personal API key
-copy "system\settings\*.txt" "dist\gui_main\settings\" >nul
-if exist "dist\gui_main\settings\setup_gemini.txt" del /f /q "dist\gui_main\settings\setup_gemini.txt"
+if exist "%DIST_USER_DATA%\neighbor_history.db" (
+    del /f /q "%DIST_USER_DATA%\neighbor_history.db"
+    echo [SECURE] Removed neighbor_history.db
+)
 
-echo [SUCCESS] Configuration completed excluding setup_gemini.txt
+del /q "%DIST_USER_DATA%\naver_profile\*" 2>nul
+echo [SECURE] Cleared naver_profile directory.
 
-echo.
-echo ========================================================
-echo     SUCCESSFULLY COMPLETED!
-echo ========================================================
-start explorer dist
+if exist "README.md" copy "README.md" "dist\" >nul
+
+if %errorlevel% equ 0 (
+    echo ================================================
+    echo    ✅ Build completed successfully!
+    echo    📂 Output: dist\NaverBlogBot.exe
+    echo    📂 UserData: dist\user_data (Clean)
+    echo ================================================
+    start dist
+) else (
+    echo [ERROR] Build failed.
+)
+
 pause

@@ -1,6 +1,10 @@
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QGroupBox, QFormLayout, 
-                             QLineEdit, QComboBox, QScrollArea, QHBoxLayout, 
-                             QPushButton, QLabel, QTextEdit)
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QGroupBox, QFormLayout, 
+    QLineEdit, QComboBox, QHBoxLayout, 
+    QPushButton, QLabel, QCheckBox, QFrame, 
+    QScrollArea, QMessageBox
+)
+from PyQt6.QtCore import Qt
 import config
 
 class LikeTab(QWidget):
@@ -8,144 +12,205 @@ class LikeTab(QWidget):
         super().__init__()
         self.main = parent_main
         self.init_ui()
-
+        
     def init_ui(self):
         layout = QVBoxLayout(self)
-        self.l_base = QGroupBox("📌 핵심 제어")
+        layout.setContentsMargins(0, 5, 0, 0)
+
+        self.l_base = QGroupBox("📌 제어")
         form = QFormLayout(self.l_base)
         self.like_cnt = QLineEdit("50")
         self.like_pg = QLineEdit("1")
-        form.addRow("🎯 목표 수:", self.like_cnt)
-        form.addRow("📑 시작 페이지:", self.like_pg)
+        form.addRow("목표 수:", self.like_cnt)
+        form.addRow("시작 페이지:", self.like_pg)
         layout.addWidget(self.l_base)
 
-        self.l_adv = QGroupBox("⚙️ 고급 설정 (⏳ 최소~최대초 사이에서 랜덤값)")
-        adv_vbox = QVBoxLayout(self.l_adv)
-        scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFixedHeight(230)
-        scr_content = QWidget(); self.scr_form = QFormLayout(scr_content)
-        self.inputs = {}
-        for k, v in config.LIKES_NEIGHBOR_CONFIG["delays"].items():
-            self.main._add_config_row(self.scr_form, self.inputs, k, v)
-        for k, v in config.LIKES_NEIGHBOR_CONFIG["conditions"].items():
-            s = QLineEdit(str(v)); self.scr_form.addRow(f"🔍 {k}:", s); self.inputs[k] = s
-        scroll.setWidget(scr_content); adv_vbox.addWidget(scroll)
-        btn_save = QPushButton("💾 공감 수치 설정 저장"); btn_save.setObjectName("save_btn")
-        btn_save.clicked.connect(self.main.save_like_settings)
-        adv_vbox.addWidget(btn_save); layout.addWidget(self.l_adv)
+        self.l_adv = QGroupBox("⚙️ 관리")
+        vbox = QVBoxLayout(self.l_adv)
+        btn_e = QPushButton("📂 딜레이/조건 설정 파일 열기")
+        btn_e.setFixedHeight(30)
+        btn_e.clicked.connect(lambda: self.main.open_txt_file(config.path_like_setup))
+        vbox.addWidget(btn_e)
+        layout.addWidget(self.l_adv)
+        
+        layout.addStretch()
 
-        btn_hbox = QHBoxLayout()
-        self.btn_run = QPushButton("🚀 이웃 공감 시작"); self.btn_run.setObjectName("action_btn"); self.btn_run.setFixedHeight(50)
+        btns = QHBoxLayout()
+        self.btn_run = QPushButton("🚀 실행 시작")
+        self.btn_run.setObjectName("action_btn")
+        self.btn_run.setFixedHeight(40)
         self.btn_run.clicked.connect(self.main.run_like_task)
-        self.btn_stop = QPushButton("🛑 작업 중단"); self.btn_stop.setObjectName("stop_btn"); self.btn_stop.setFixedHeight(50); self.btn_stop.setEnabled(False)
+        self.btn_stop = QPushButton("🛑 중단")
+        self.btn_stop.setObjectName("stop_btn")
+        self.btn_stop.setFixedHeight(40)
+        self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self.main.stop_task)
-        btn_hbox.addWidget(self.btn_run, 2); btn_hbox.addWidget(self.btn_stop, 1)
-        layout.addLayout(btn_hbox)
+        btns.addWidget(self.btn_run, 3)
+        btns.addWidget(self.btn_stop, 1)
+        layout.addLayout(btns)
 
 class AddTab(QWidget):
     def __init__(self, parent_main):
         super().__init__()
         self.main = parent_main
         self.init_ui()
-
+        
     def init_ui(self):
         layout = QVBoxLayout(self)
-        self.a_base = QGroupBox("📌 핵심 제어")
+        layout.setContentsMargins(0, 5, 0, 0)
+
+        self.a_base = QGroupBox("📌 제어")
         form = QFormLayout(self.a_base)
-        self.combo_main = QComboBox(); self.combo_sub = QComboBox()
-        for cid, cdata in config.THEME_CATEGORIES.items(): self.combo_main.addItem(cdata['name'], cid)
+        self.combo_main = QComboBox()
+        self.combo_sub = QComboBox()
+        for cid, data in config.THEME_CATEGORIES.items():
+            self.combo_main.addItem(data['name'], cid)
         self.combo_main.currentIndexChanged.connect(self.main.update_sub_combo)
-        self.add_cnt = QLineEdit("20"); self.add_pg = QLineEdit("1")
-        form.addRow("📁 대분류:", self.combo_main); form.addRow("🏷️ 상세주제:", self.combo_sub)
-        form.addRow("🎯 목표 인원:", self.add_cnt); form.addRow("📑 시작 페이지:", self.add_pg)
+        self.add_cnt = QLineEdit("20")
+        self.add_pg = QLineEdit("1")
+        form.addRow("대분류:", self.combo_main)
+        form.addRow("상세주제:", self.combo_sub)
+        form.addRow("목표 인원:", self.add_cnt)
+        form.addRow("시작 페이지:", self.add_pg)
         layout.addWidget(self.a_base)
 
-        self.a_adv = QGroupBox("⚙️ 고급 설정 (⏳ 최소~최대초 사이에서 랜덤값)")
-        adv_vbox = QVBoxLayout(self.a_adv)
-        f_btn_lay = QHBoxLayout()
-        btn_o_msg = QPushButton("📂 서이추 메시지 열기"); btn_o_msg.setObjectName("file_btn")
-        btn_o_cmt = QPushButton("📂 댓글 관리 열기"); btn_o_cmt.setObjectName("file_btn")
-        btn_o_msg.clicked.connect(lambda: self.main.open_txt_file(config.path_neighbor_msg))
-        btn_o_cmt.clicked.connect(lambda: self.main.open_txt_file(config.path_comment_msg))
-        f_btn_lay.addWidget(btn_o_msg); f_btn_lay.addWidget(btn_o_cmt); adv_vbox.addLayout(f_btn_lay)
+        self.a_adv = QGroupBox("⚙️ 관리")
+        vbox = QVBoxLayout(self.a_adv)
+        for t, p in [("📂 딜레이 설정", config.path_add_setup), 
+                    ("📂 신청 메시지 목록", config.path_neighbor_msg), 
+                    ("📂 서이추용 댓글 목록", config.path_comment_msg)]:
+            btn = QPushButton(t)
+            btn.setFixedHeight(25)
+            btn.clicked.connect(lambda ch, path=p: self.main.open_txt_file(path))
+            vbox.addWidget(btn)
+        layout.addWidget(self.a_adv)
+        
+        layout.addStretch()
 
-        scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFixedHeight(230)
-        scr_content = QWidget(); self.scr_form = QFormLayout(scr_content)
-        self.inputs = {}
-        for k, v in config.ADD_NEIGHBOR_CONFIG["delays"].items():
-            self.main._add_config_row(self.scr_form, self.inputs, k, v)
-        for k, v in config.ADD_NEIGHBOR_CONFIG["conditions"].items():
-            s = QLineEdit(str(v)); self.scr_form.addRow(f"🔍 {k}:", s); self.inputs[k] = s
-        scroll.setWidget(scr_content); adv_vbox.addWidget(scroll)
-        btn_save = QPushButton("💾 서이추 수치 설정 저장"); btn_save.setObjectName("save_btn")
-        btn_save.clicked.connect(self.main.save_add_settings)
-        adv_vbox.addWidget(btn_save); layout.addWidget(self.a_adv)
-
-        btn_hbox = QHBoxLayout()
-        self.btn_run = QPushButton("🚀 서로이웃 신청 시작"); self.btn_run.setObjectName("action_btn"); self.btn_run.setFixedHeight(50)
+        btns = QHBoxLayout()
+        self.btn_run = QPushButton("🚀 실행 시작")
+        self.btn_run.setObjectName("action_btn")
+        self.btn_run.setFixedHeight(40)
         self.btn_run.clicked.connect(self.main.run_add_task)
-        self.btn_stop = QPushButton("🛑 작업 중단"); self.btn_stop.setObjectName("stop_btn"); self.btn_stop.setFixedHeight(50); self.btn_stop.setEnabled(False)
+        self.btn_stop = QPushButton("🛑 중단")
+        self.btn_stop.setObjectName("stop_btn")
+        self.btn_stop.setFixedHeight(40)
+        self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self.main.stop_task)
-        btn_hbox.addWidget(self.btn_run, 2); btn_hbox.addWidget(self.btn_stop, 1)
-        layout.addLayout(btn_hbox)
+        btns.addWidget(self.btn_run, 3)
+        btns.addWidget(self.btn_stop, 1)
+        layout.addLayout(btns)
 
-class CommentTab(QWidget):
+class SmartNeighborManagementTab(QWidget):
     def __init__(self, parent_main):
         super().__init__()
         self.main = parent_main
         self.init_ui()
-
+        
     def init_ui(self):
         layout = QVBoxLayout(self)
-        self.c_base = QGroupBox("📌 핵심 제어")
-        form = QFormLayout(self.c_base)
-        self.comment_cnt = QLineEdit("30")
-        self.comment_pg = QLineEdit("1")
-        self.comment_interval = QLineEdit(str(config.NEIGHBOR_COMMENT_CONFIG["conditions"].get("방문주기", 3)))
-        form.addRow("🎯 목표 인원:", self.comment_cnt)
-        form.addRow("📑 시작 페이지:", self.comment_pg)
-        form.addRow("📅 댓글 주기(일):", self.comment_interval)
-        layout.addWidget(self.c_base)
+        layout.setContentsMargins(0, 5, 0, 0)
         
-        # [신규] Gemini AI 설정 그룹
-        self.c_ai = QGroupBox("🤖 Gemini AI 설정 (자동 댓글)")
-        ai_layout = QFormLayout(self.c_ai)
+        conf = config.SMART_NEIGHBOR_CONFIG
+        self.s_base = QGroupBox("📌 제어")
+        form = QFormLayout(self.s_base)
+        self.target_comment = QLineEdit(str(conf["conditions"].get("댓글목표", 20)))
+        self.start_pg = QLineEdit(str(conf["conditions"].get("시작페이지", 1)))
+        self.comment_interval = QLineEdit(str(conf["conditions"].get("댓글주기", 1)))
+        form.addRow("댓글 목표:", self.target_comment)
+        form.addRow("시작 페이지:", self.start_pg)
+        form.addRow("주기(일):", self.comment_interval)
+        layout.addWidget(self.s_base)
         
-        self.ai_key = QLineEdit(config.GEMINI_CONFIG.get("GEMINI_API_KEY", ""))
-        self.ai_key.setPlaceholderText("Gemini API Key를 입력하세요")
-        self.ai_key.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit) # 보안용
-        
-        self.ai_prompt = QTextEdit()
-        self.ai_prompt.setPlainText(config.GEMINI_CONFIG.get("GEMINI_PROMPT", ""))
-        self.ai_prompt.setFixedHeight(80)
-        self.ai_prompt.setPlaceholderText("AI에게 시킬 명령어를 입력하세요")
-        
-        ai_layout.addRow("🔑 API Key:", self.ai_key)
-        ai_layout.addRow("📝 프롬프트:", self.ai_prompt)
-        layout.addWidget(self.c_ai)
+        self.inputs = {
+            "댓글목표": self.target_comment, 
+            "시작페이지": self.start_pg, 
+            "방문주기": self.comment_interval
+        }
 
-        self.c_adv = QGroupBox("⚙️ 고급 설정 (⏳ neighbor_history.db 연동)")
-        adv_vbox = QVBoxLayout(self.c_adv)
-        btn_o_cmt_msg = QPushButton("📂 댓글 관리 열기"); btn_o_cmt_msg.setObjectName("file_btn")
-        btn_o_cmt_msg.clicked.connect(lambda: self.main.open_txt_file(config.path_comment_msg))
-        adv_vbox.addWidget(btn_o_cmt_msg)
+        self.s_adv = QGroupBox("⚙️ AI/설정")
+        vbox = QVBoxLayout(self.s_adv)
+        hb = QHBoxLayout()
+        self.ai_toggle = QCheckBox("🤖 Gemini AI 사용")
+        self.ai_toggle.setChecked(config.GEMINI_CONFIG.get("USE_GEMINI", False))
+        self.ai_toggle.stateChanged.connect(self.main.save_smart_settings)
+        self.ai_status_msg = QLabel()
+        hb.addWidget(self.ai_toggle)
+        hb.addWidget(self.ai_status_msg)
+        hb.addStretch()
+        vbox.addLayout(hb)
+        
+        btns = QHBoxLayout()
+        for t, p in [("📂 상세설명", config.path_smart_neighbor_management_setup), 
+                    ("📂 AI 키", config.path_gemini_setup), 
+                    ("📂 댓글목록", config.path_comment_msg)]:
+            btn = QPushButton(t)
+            btn.setFixedHeight(25)
+            btn.clicked.connect(lambda ch, path=p: self.main.open_txt_file(path))
+            btns.addWidget(btn)
+        vbox.addLayout(btns)
+        layout.addWidget(self.s_adv)
 
-        scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFixedHeight(230)
-        scr_content = QWidget(); self.scr_form = QFormLayout(scr_content)
-        self.inputs = {}
-        for k, v in config.NEIGHBOR_COMMENT_CONFIG["delays"].items():
-            self.main._add_config_row(self.scr_form, self.inputs, k, v)
-        for k, v in config.NEIGHBOR_COMMENT_CONFIG["conditions"].items():
-            if k == "방문주기": continue
-            s = QLineEdit(str(v)); self.scr_form.addRow(f"🔍 {k}:", s); self.inputs[k] = s
-        scroll.setWidget(scr_content); adv_vbox.addWidget(scroll)
-        btn_save = QPushButton("💾 AI 설정 & 댓글 수치 설정 저장"); btn_save.setObjectName("save_btn")
-        btn_save.clicked.connect(self.main.save_comment_settings)
-        adv_vbox.addWidget(btn_save); layout.addWidget(self.c_adv)
+        self.s_ranking = QGroupBox("🏆 랭킹")
+        rl = QVBoxLayout(self.s_ranking)
+        
+        # 헤더 섹션
+        header = QFrame()
+        header.setStyleSheet("background-color: #333; font-weight: bold; border-radius: 4px;")
+        hl = QHBoxLayout(header)
+        hl.setContentsMargins(5, 2, 5, 2)
+        hl.addWidget(QLabel("순위"), 1)
+        hl.addWidget(QLabel("닉네임"), 3)
+        hl.addWidget(QLabel("댓글"), 1)
+        hl.addWidget(QLabel("답글"), 1)
+        hl.addWidget(QLabel("공감"), 1)
+        hl.addWidget(QLabel("점수"), 1)
+        rl.addWidget(header)
 
-        btn_hbox = QHBoxLayout()
-        self.btn_run = QPushButton("🚀 이웃 댓글 시작"); self.btn_run.setObjectName("action_btn"); self.btn_run.setFixedHeight(50)
-        self.btn_run.clicked.connect(self.main.run_comment_task)
-        self.btn_stop = QPushButton("🛑 작업 중단"); self.btn_stop.setObjectName("stop_btn"); self.btn_stop.setFixedHeight(50); self.btn_stop.setEnabled(False)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setStyleSheet("background: #252526; border: none;")
+        self.scroll_content = QWidget()
+        self.ranking_vbox = QVBoxLayout(self.scroll_content)
+        self.ranking_vbox.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.scroll.setWidget(self.scroll_content)
+        rl.addWidget(self.scroll)
+        layout.addWidget(self.s_ranking)
+
+        act = QHBoxLayout()
+        self.btn_run = QPushButton("🚀 시작")
+        self.btn_run.setObjectName("action_btn")
+        self.btn_run.setFixedHeight(40)
+        self.btn_run.clicked.connect(self.main.run_smart_neighbor_management_task)
+        self.btn_stop = QPushButton("🛑 중단")
+        self.btn_stop.setObjectName("stop_btn")
+        self.btn_stop.setFixedHeight(40)
+        self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self.main.stop_task)
-        btn_hbox.addWidget(self.btn_run, 2); btn_hbox.addWidget(self.btn_stop, 1)
-        layout.addLayout(btn_hbox)
+        act.addWidget(self.btn_run, 3)
+        act.addWidget(self.btn_stop, 1)
+        layout.addLayout(act)
+        self.refresh_ai_ui_status()
+
+    def refresh_ai_ui_status(self):
+        on = self.ai_toggle.isChecked()
+        self.ai_status_msg.setText("● ON" if on else "● OFF")
+        self.ai_status_msg.setStyleSheet(f"color: {'#2DB400' if on else '#C13535'}; font-size: 10px;")
+
+    def update_ranking_ui(self, data):
+        for i in reversed(range(self.ranking_vbox.count())):
+            self.ranking_vbox.itemAt(i).widget().setParent(None)
+        if not data: return
+        for i, (nick, d) in enumerate(data, 1):
+            row = QFrame()
+            row.setFixedHeight(22)
+            row.setStyleSheet("border-bottom: 1px solid #333;")
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(5, 0, 5, 0)
+            rl.addWidget(QLabel(f"{i}위"), 1)
+            rl.addWidget(QLabel(f"<b>{nick}</b>"), 3)
+            rl.addWidget(QLabel(str(d.get('comment', 0))), 1)
+            rl.addWidget(QLabel(str(d.get('reply', 0))), 1) # 답글 필드 추가
+            rl.addWidget(QLabel(str(d.get('like', 0))), 1)
+            rl.addWidget(QLabel(f"<span style='color:#2DB400;'>{d.get('score', 0)}</span>"), 1)
+            self.ranking_vbox.addWidget(row)
