@@ -424,6 +424,17 @@ class BlogSmartNeighborManagement:
                     msg = random.choice(messages)
                     use_ai = False
 
+                # ==========================================================
+                # [수정] 이모지 제거 (BMP 오류 방지)
+                # 크롬 드라이버 충돌 방지를 위해 이모지를 제거합니다.
+                # ==========================================================
+                msg = ''.join(c for c in msg if c <= '\uFFFF')
+                
+                # 만약 이모지를 다 지웠더니 내용이 비어버리면 기본 메시지 사용
+                if not msg.strip():
+                    msg = random.choice(messages)
+                # ==========================================================
+
                 # 5. 댓글 입력 및 전송
                 smart_click(self.driver, input_area)
                 human_typing(input_area, msg)
