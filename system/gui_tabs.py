@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 import config
+from bot_class.db_manager import BlogDB
 
 class LikeTab(QWidget):
     def __init__(self, parent_main):
@@ -149,6 +150,14 @@ class SmartNeighborManagementTab(QWidget):
             btn.clicked.connect(lambda ch, path=p: self.main.open_txt_file(path))
             btns.addWidget(btn)
         vbox.addLayout(btns)
+
+        btn_reset = QPushButton("🗑️ 이웃점수DB초기화")
+        btn_reset.setFixedHeight(25)
+        # 붉은색 스타일로 경고 느낌 추가
+        btn_reset.setStyleSheet("color: #FF6666; border: 1px solid #FF6666;") 
+        btn_reset.clicked.connect(self.reset_db)
+        vbox.addWidget(btn_reset)
+
         layout.addWidget(self.s_adv)
 
         self.s_ranking = QGroupBox("🏆 랭킹")
@@ -214,3 +223,20 @@ class SmartNeighborManagementTab(QWidget):
             rl.addWidget(QLabel(str(d.get('like', 0))), 1)
             rl.addWidget(QLabel(f"<span style='color:#2DB400;'>{d.get('score', 0)}</span>"), 1)
             self.ranking_vbox.addWidget(row)
+
+    def reset_db(self):
+        """이웃 점수 및 스캔 기록 초기화"""
+        reply = QMessageBox.question(
+            self, '초기화 경고', 
+            '이웃 점수 통계와 마지막 스캔 시점을 모두 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            db = BlogDB()
+            if db.reset_smart_data():
+                self.update_ranking_ui([]) # 랭킹 화면 비우기
+                QMessageBox.information(self, '완료', '이웃 점수 DB가 초기화되었습니다.')
+            else:
+                QMessageBox.critical(self, '오류', 'DB 초기화 중 문제가 발생했습니다.')

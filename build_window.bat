@@ -73,8 +73,6 @@ if exist "%DIST_USER_DATA%\neighbor_history.db" (
 del /q "%DIST_USER_DATA%\naver_profile\*" 2>nul
 echo [SECURE] Cleared naver_profile directory.
 
-if exist "README.md" copy "README.md" "dist\" >nul
-
 if %errorlevel% equ 0 (
     echo ================================================
     echo    ✅ Build completed successfully!

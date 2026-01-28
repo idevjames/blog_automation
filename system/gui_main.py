@@ -186,9 +186,15 @@ class MainWindow(QMainWindow):
         self.status_dot.setStyleSheet("background-color: #808080; border-radius: 5px;")
         self.status_label = QLabel("연결 확인 중...")
         self.status_label.setStyleSheet("font-size: 11px; color: #888;")
+
+        btn_reconnect = QPushButton("브라우저 재실행")
+        btn_reconnect.setFixedSize(110, 30)
+        btn_reconnect.clicked.connect(lambda: self.start_action("init_session"))
+
         top_bar.addWidget(self.status_dot)
         top_bar.addWidget(self.status_label)
         top_bar.addStretch()
+        top_bar.addWidget(btn_reconnect)
         main_layout.addLayout(top_bar)
 
         # 콘텐츠 영역
@@ -248,10 +254,23 @@ class MainWindow(QMainWindow):
             self.stack.setCurrentIndex(2)
 
     def append_log(self, text):
+        # 1. 현재 스크롤바 객체 가져오기
+        scrollbar = self.log_text.verticalScrollBar()
+        
+        # 2. 텍스트 추가 전, 스크롤이 '맨 아래'에 있는지 확인
+        # (현재 위치가 최대값 근처라면 바닥에 있는 것으로 간주)
+        is_at_bottom = (scrollbar.value() >= scrollbar.maximum() - 10)
+        
+        # 3. 로그 텍스트 추가
         self.log_text.append(text)
-        cursor = self.log_text.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        self.log_text.setTextCursor(cursor)
+        
+        # 4. 아까 스크롤이 바닥에 있었던 경우에만, 커서를 맨 끝으로 이동 (오토 스크롤)
+        # 사용자가 위를 보고 있었다면(is_at_bottom == False), 이 부분이 실행되지 않아 스크롤이 유지됨
+        if is_at_bottom:
+            self.log_text.moveCursor(QTextCursor.MoveOperation.End)
+            
+        # UI 갱신 (반응성 유지)
+        QApplication.processEvents()
         
         # 로그 분석 및 탭 텍스트 실시간 업데이트
         if "❤️ 공감 완료" in text:
