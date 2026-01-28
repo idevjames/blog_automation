@@ -1,0 +1,50 @@
+name: Build macOS App
+
+# 수동 실행 가능하도록 설정
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    # 1. 코드 가져오기
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # 2. 파이썬 3.11 설정
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    # 3. 권한 부여 및 빌드 스크립트 실행
+    # (setup_venv는 build_ios.sh 내부에서 호출되므로, 둘 다 권한을 줍니다)
+    - name: Run Build Script
+      run: |
+        # 스크립트 실행 권한 부여
+        chmod +x build_ios.sh
+        chmod +x setup_venv.command
+        
+        # 빌드 스크립트 실행
+        # (이 스크립트가 알아서 setup_venv를 부르고 빌드까지 완료함)
+        ./build_ios.sh
+
+    # 4. 결과물 압축 (dist 폴더 내의 내용물만 압축)
+    - name: Zip Build Output
+      run: |
+        cd dist
+        # . (현재 폴더의 모든 파일/폴더)을 압축
+        # 이렇게 해야 압축 풀었을 때 'dist' 폴더 없이 바로 'NaverBlogBot.app'이 나옵니다.
+        zip -r ../blog_automation_mac.zip .
+
+    # 5. 아티팩트 업로드
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: blog_automation_mac
+        path: blog_automation_mac.zip
+        retention-days: 5
+
