@@ -25,7 +25,7 @@ jobs:
 
     - name: Zip Build Output
       run: |
-        Compress-Archive -Path dist/NaverBlogBot/* -DestinationPath blog_automation_windows.zip
+        Compress-Archive -Path dist/* -DestinationPath blog_automation_windows.zip
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
