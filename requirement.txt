@@ -1,0 +1,6 @@
+selenium
+requests
+PyQt6
+pyinstaller
+google-genai
+
