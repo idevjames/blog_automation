@@ -88,10 +88,6 @@ fi
 rm -rf "$DIST_USER_DATA/naver_profile/*"
 echo -e "${YELLOW}   🔒 Cleared 'naver_profile' directory.${NC}"
 
-# 7. 추가 배포 파일 복사
-echo -e "📝 Copying README..."
-[ -f "README.md" ] && cp "README.md" dist/
-
 # 8. 결과 확인
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}================================================${NC}"

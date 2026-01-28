@@ -1,9 +1,11 @@
 import re
 import time
 import random
+from datetime import datetime, timedelta
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
 from ai_helper import GeminiHelper
 from bot_class.db_manager import BlogDB
 import config
@@ -16,7 +18,7 @@ class BlogSmartNeighborManagement:
         self.worker = None
         self.db = BlogDB()
         self.temp_neighbor_stats = {}
-        self.current_checkpoints = []
+        # cached_ranking_map: 1단계 분석 후 랭킹 정보를 담아두는 곳
         self.cached_ranking_map = {} 
 
     def check_stopped(self):
@@ -25,39 +27,43 @@ class BlogSmartNeighborManagement:
             return True
         return False
 
-    def _get_item_fingerprint(self, card):
-        """알림 카드 파싱 및 지문 생성"""
+    def _parse_relative_time(self, time_text):
+        """
+        네이버 알림 시간 텍스트를 현재 시스템 시간(캐나다/한국) 기준 datetime으로 변환
+        - 날짜 포맷(YYYY.MM.DD)은 24시간 경과로 간주하여 None 반환
+        """
+        now = datetime.now()
+        txt = time_text.strip()
+        
         try:
-            try:
-                icon_area = card.find_element(By.CSS_SELECTOR, ".icon_area__qMg6z")
-                type_text = icon_area.text.strip()
-            except:
-                return None, None, None, None
+            # 1. 날짜 포맷 처리 (예: 2026. 1. 27.)
+            # 정규식으로 '숫자. 숫자. 숫자' 패턴 확인
+            if re.search(r'\d{4}\.\s*\d{1,2}\.\s*\d{1,2}', txt):
+                nums = re.findall(r'\d+', txt)
+                if len(nums) >= 3:
+                    # 시간 정보가 없으므로 00:00:00으로 설정
+                    # -> 마지막 스캔 시간이 15:00였다면, 00:00 <= 15:00 이 되어 '과거'로 판단됨 (중복 방지)
+                    return datetime(int(nums[0]), int(nums[1]), int(nums[2]))
+                return None
 
-            act_type = ""
-            if "공감" in type_text: act_type = "공감"
-            elif "댓글" in type_text: act_type = "댓글"
-            elif "답글" in type_text: act_type = "답글"
-            else: return None, None, None, None
-
-            try:
-                title_area = card.find_element(By.CSS_SELECTOR, ".title__KPI3G")
-                strong_tags = title_area.find_elements(By.TAG_NAME, "strong")
-                nick = strong_tags[0].text.strip()
-                content = strong_tags[1].text.strip() if len(strong_tags) > 1 else "제목없음"
-            except:
-                return None, None, None, None
-
-            safe_content = content[:30].replace(" ", "")
-            fingerprint = f"{nick}_{act_type}_{safe_content}"
-            return nick, act_type, content, fingerprint
-        except Exception as e:
-            return None, None, None, None
+            # 2. 상대 시간 처리
+            if "방금 전" in txt:
+                return now
+            elif "분 전" in txt:
+                minutes = int(re.sub(r'[^0-9]', '', txt))
+                return now - timedelta(minutes=minutes)
+            elif "시간 전" in txt:
+                hours = int(re.sub(r'[^0-9]', '', txt))
+                return now - timedelta(hours=hours)
+            
+            # '어제'는 나오지 않는다는 전제하에 로직 제거, 그 외 알 수 없는 포맷은 None
+            return None
+        except:
+            return None
 
     def run(self, params=None):
-        """스마트 이웃 관리 메인 루프"""
+        """스마트 이웃 관리 메인 루프 (Phase 1 -> Phase 2)"""
         config.sync_all_configs()
-        conf = config.SMART_NEIGHBOR_CONFIG
         
         # [Phase 1] 알림 분석 및 DB 동기화
         if not self._phase_1_analysis():
@@ -66,9 +72,174 @@ class BlogSmartNeighborManagement:
         if self.check_stopped(): 
             return
         
+        # [Phase 2] 스마트 답방 실행
+        self._phase_2_action(params)
+
+    def _phase_1_analysis(self):
+        """[Phase 1] 알림 분석 (Strict Time Cutoff 적용)"""
         try:
-            target_comment_cnt = params.get('target_comment', 30)
-            start_page = params.get('start_pg', 1)
+            # 설정값 로드
+            cond = config.SMART_NEIGHBOR_CONFIG.get("conditions", {})
+            
+            # 1. 마지막 스캔 시간 로드
+            last_scan_time = self.db.get_last_scan_time()
+            current_scan_start_time = datetime.now() # 이번 스캔 시작 시간
+            
+            print(f"\n🕒 [기준 시각] {last_scan_time.strftime('%Y-%m-%d %H:%M:%S')} 이후 알림만 수집합니다.")
+
+            self.driver.get("https://m.blog.naver.com/News.naver")
+            smart_sleep((2.0, 3.0), "알림 페이지 로딩")
+
+            new_stats = {}
+            is_scan_finished = False
+            consecutive_empty_count = 0
+            processed_count = 0
+
+            print(f"\n📡 [1단계] 데이터 증분 수집 시작...")
+
+            while not is_scan_finished: 
+                if self.check_stopped(): return False
+                
+                # 1. 전체 카드 로드
+                all_cards = self.driver.find_elements(By.CSS_SELECTOR, "li[class*='item']")
+                
+                # 2. 증분 처리
+                new_batch = all_cards[processed_count:]
+
+                # --- [분기 A] 새로운 배치가 없을 때 (스크롤 또는 종료 판단) ---
+                if not new_batch:
+                    # (1) UI 바닥 체크
+                    try:
+                        footer = self.driver.find_elements(By.CSS_SELECTOR, "div[class*='scroll_top']")
+                        if footer and footer[0].is_displayed():
+                            print(f"\n🛑 [종료 사유] '맨 위로' 버튼(UI) 발견 -> 페이지 바닥 도착")
+                            is_scan_finished = True
+                            break
+                    except: pass
+
+                    # (2) 연속 실패 카운트
+                    consecutive_empty_count += 1
+                    if consecutive_empty_count >= 5:
+                        print(f"\n⚠️ [종료 사유] 5회 연속 데이터 로드 실패 -> 강제 종료")
+                        is_scan_finished = True
+                        break
+
+                    # (3) 스크롤 시도
+                    scroll_dist = cond.get("스크롤보폭", 500)
+                    load_delay = cond.get("데이터수집스크롤간격", (0.5, 0.8))
+                    
+                    human_scroll_distance(self.driver, scroll_dist)
+                    smart_sleep(load_delay, "데이터 로딩 대기")
+                    continue
+
+                # --- [분기 B] 새로운 배치가 있을 때 ---
+                consecutive_empty_count = 0 
+
+                for card in new_batch:
+                    processed_count += 1
+                    
+                    # 1. 시간 텍스트 추출
+                    try:
+                        time_el = card.find_element(By.CSS_SELECTOR, "span[class*='date']")
+                        time_txt = time_el.text.strip()
+                    except:
+                        continue
+
+                    # 2. 시간 파싱
+                    item_time = self._parse_relative_time(time_txt)
+
+                    if item_time is not None:
+                        # [핵심] Strict Cutoff 로직
+                        # 알림 시간이 마지막 스캔 시간보다 같거나 과거면 -> 이미 처리한 데이터(혹은 날짜 변환으로 인한 과거 처리) -> 종료
+                        if item_time <= last_scan_time:
+                            print(f"   🛑 [종료] 마지막 작업 시점 도달 ({time_txt}) -> 중복 방지")
+                            is_scan_finished = True
+                            break
+                    else:
+                        # 파싱 실패 시 안전하게 건너뛰거나 종료 (여기선 종료하여 안전 추구)
+                        print(f"   🛑 [종료] 시간 형식 인식 불가 ({time_txt}) -> 안전 종료")
+                        is_scan_finished = True
+                        break
+                    
+                    # 3. 데이터 수집
+                    try:
+                        text_content = card.text
+                        act_type = ""
+                        if "공감" in text_content: act_type = "공감"
+                        elif "댓글" in text_content: act_type = "댓글"
+                        elif "답글" in text_content: act_type = "답글"
+
+                        nick_el = card.find_element(By.TAG_NAME, "strong")
+                        nick = nick_el.text.strip()
+                        
+                        if nick and act_type:
+                            if nick not in new_stats:
+                                new_stats[nick] = {'like': 0, 'comment': 0, 'reply': 0}
+                            
+                            if act_type == "댓글": new_stats[nick]['comment'] += 1
+                            elif act_type == "답글": new_stats[nick]['reply'] += 1
+                            elif act_type == "공감": new_stats[nick]['like'] += 1
+                            
+                            print(f"   > [수집] {nick} ({act_type}) - {time_txt}")
+                    except Exception as e:
+                        continue
+
+                if is_scan_finished:
+                    break
+
+            # --- [데이터 정리 및 저장] ---
+            if new_stats:
+                self.db.update_neighbor_stats_only(new_stats)
+                print(f"\n ✅ {len(new_stats)}명의 새로운 활동 데이터 저장 완료")
+            else:
+                print(f"\n ✅ 새로운 활동이 없습니다.")
+
+            # 마지막 스캔 시간 갱신
+            self.db.update_last_scan_time(current_scan_start_time)
+
+            # 랭킹 산출 및 캐싱
+            self._cache_and_emit_rankings()
+            
+            return True
+
+        except Exception as e:
+            print(f"⚠️ [1단계 오류] {e}")
+            return False
+
+    def _cache_and_emit_rankings(self):
+        """DB 통계를 메모리에 캐싱하고 GUI로 전송"""
+        stats = self.db.get_all_neighbor_stats()
+        raw_ui_list = []
+        self.cached_ranking_map = {}
+
+        for s in stats:
+            score = (s['total_comments'] * 10) + (s['total_reply'] * 3) + (s['total_likes'] * 1)
+            self.cached_ranking_map[s['nickname']] = {
+                'c': s['total_comments'], 
+                'r': s['total_reply'], 
+                'l': s['total_likes'],
+                'score': score
+            }
+            raw_ui_list.append((s['nickname'], {
+                'comment': s['total_comments'], 
+                'reply': s['total_reply'], 
+                'like': s['total_likes'], 
+                'score': score
+            }))
+        
+        ui_list = sorted(raw_ui_list, key=lambda x: x[1]['score'], reverse=True)
+        if self.worker: 
+            try: self.worker.ranking_signal.emit(ui_list)
+            except: pass
+
+    def _phase_2_action(self, params):
+        """[Phase 2] 스마트 답방 실행 (기존 run 함수 로직 이동)"""
+        try:
+            # 설정값 사용 유지
+            conf = config.SMART_NEIGHBOR_CONFIG
+            target_comment_cnt = params.get('target_comment', 30) if params else 30
+            start_page = params.get('start_pg', 1) if params else 1
+            
             print(f"\n🚀 [2단계] 스마트 답방 시작 (목표 댓글: {target_comment_cnt}건)")
             
             current_page = start_page
@@ -81,6 +252,7 @@ class BlogSmartNeighborManagement:
                 url = f"https://section.blog.naver.com/BlogHome.naver?currentPage={current_page}"
                 self.driver.get(url)
                 
+                # 기존 설정값 사용
                 p_loading = conf.get("delays", {}).get("페이지로딩", (2.0, 3.5))
                 smart_sleep(p_loading if isinstance(p_loading, tuple) else (2.0, 3.5), f"{current_page}페이지 로딩")
                 
@@ -89,7 +261,7 @@ class BlogSmartNeighborManagement:
                     print(f"⚠️ {current_page}페이지에 게시글이 없습니다. 작업을 종료합니다.")
                     break
 
-                # [Plan] 행동 계획 수립 (상세 로그 출력 포함)
+                # [Plan] 행동 계획 수립
                 action_plan = self._plan_page_actions(items)
                 
                 # [Execute] 계획 실행
@@ -105,146 +277,6 @@ class BlogSmartNeighborManagement:
 
         except Exception as e:
             print(f"⚠️ [2단계 오류] {e}")
-
-    def _phase_1_analysis(self):
-        """[Phase 1] 알림 분석 (중단점 또는 UI 바닥 감지 시 종료)"""
-        try:
-            config.sync_all_configs()
-            cond = config.SMART_NEIGHBOR_CONFIG.get("conditions", {})
-            
-            # 1. DB에서 중단점 3개 다 가져오기
-            old_checkpoints = self.db.get_last_checkpoints_details()
-            last_ids = [cp['id'] for cp in old_checkpoints] if old_checkpoints else []
-            
-            print(f"\n[🔍 DB 로드된 중단점]: {len(last_ids)}개 로드됨 ({last_ids})")
-            
-            self.driver.get("https://m.blog.naver.com/News.naver")
-            smart_sleep((2.0, 3.0), "알림 페이지 로딩")
-
-            self.current_checkpoints = [] 
-            self.temp_neighbor_stats = {} 
-            
-            last_processed_index = 0
-            new_count = 0
-            consecutive_empty_count = 0 # 연속으로 데이터 못 찾은 횟수 (Safety Net)
-            
-            # [핵심] 스캔 종료 여부를 판단하는 깃발
-            is_scan_finished = False 
-
-            print(f"\n📡 [1단계] 데이터 증분 수집 시작...")
-
-            while not is_scan_finished: 
-                if self.check_stopped(): return False
-                
-                # 1. 전체 카드 로드
-                all_cards = self.driver.find_elements(By.CSS_SELECTOR, "li.item__INKiv")
-                total_len = len(all_cards)
-
-                # 2. 증분 처리 (이미 처리한 인덱스 이후부터)
-                new_batch = all_cards[last_processed_index:]
-
-                # ---------------------------------------------------------
-                # [분기 A] 새로운 배치가 없을 때 (스크롤 또는 종료 판단)
-                # ---------------------------------------------------------
-                if not new_batch:
-                    # (1) UI 바닥 체크: '맨 위로' 버튼이 있는지 확인
-                    try:
-                        footer_buttons = self.driver.find_elements(By.CSS_SELECTOR, "div.scroll_top__YuIw9")
-                        if footer_buttons and footer_buttons[0].is_displayed():
-                            print(f"\n🛑 [종료 사유] '맨 위로' 버튼(UI) 발견 -> 페이지 바닥 도착")
-                            is_scan_finished = True
-                            break
-                    except: pass
-
-                    # (2) UI가 안 보이면 연속 실패 카운트 증가
-                    consecutive_empty_count += 1
-                    
-                    # (3) 5회 연속 실패 시 강제 종료 (네트워크 이슈 등)
-                    if consecutive_empty_count >= 5:
-                        print(f"\n⚠️ [종료 사유] 5회 연속 데이터 로드 실패 -> 강제 종료 (네트워크 지연 등)")
-                        is_scan_finished = True
-                        break
-
-                    # (4) 아직 기회가 남았으면 스크롤 시도
-                    scroll_dist = cond.get("스크롤보폭", 500)
-                    load_delay = cond.get("데이터수집스크롤간격", (0.5, 0.8))
-                    
-                    human_scroll_distance(self.driver, scroll_dist)
-                    smart_sleep(load_delay, "데이터 로딩 대기")
-                    continue
-
-                # ---------------------------------------------------------
-                # [분기 B] 새로운 배치가 있을 때 (데이터 분석)
-                # ---------------------------------------------------------
-                consecutive_empty_count = 0 # 데이터 찾았으므로 카운트 리셋
-
-                for card in new_batch:
-                    nick, act_type, content, fingerprint = self._get_item_fingerprint(card)
-                    
-                    if nick:
-                        # [조건 1] 중단점(Checkpoint) 발견 시 종료
-                        if last_ids and fingerprint in last_ids:
-                            print(f"\n🛑 [종료 사유] 기존 중단점 도달: {nick}님 ({fingerprint})")
-                            print(f"   -> 더 이상 과거 데이터는 수집하지 않습니다.")
-                            is_scan_finished = True
-                            break # for문 탈출
-
-                        # 데이터 수집
-                        self.current_checkpoints.append({
-                            'id': fingerprint, 'nick': nick, 'type': act_type, 'content': content
-                        })
-
-                        if nick not in self.temp_neighbor_stats:
-                            self.temp_neighbor_stats[nick] = {'like': 0, 'comment': 0, 'reply': 0}
-                        if act_type == "댓글": self.temp_neighbor_stats[nick]['comment'] += 1
-                        elif act_type == "답글": self.temp_neighbor_stats[nick]['reply'] += 1
-                        elif act_type == "공감": self.temp_neighbor_stats[nick]['like'] += 1
-                        
-                        new_count += 1
-                        print(f"   > [수집] {new_count}번째 활동: {nick} ({act_type})", end='\r')
-                    
-                    last_processed_index += 1
-
-                # 중단점을 만나서 for문을 나왔다면 while문도 종료
-                if is_scan_finished:
-                    break
-
-            # ---------------------------------------------------------
-            # [데이터 정리 및 DB 저장 로직]
-            # ---------------------------------------------------------
-            
-            # [케이스 1] 새로운 데이터가 하나도 없을 때
-            if new_count == 0:
-                print(f"\n ✅ 새로운 활동이 없습니다. (현재 최신 상태)")
-            
-            # [케이스 2] 새로운 데이터가 있을 때
-            else:
-                # 1. 새로 찾은 거(앞) + 기존 거(뒤) 합쳐서 -> 앞에서 3개 자름
-                final_checkpoints = (self.current_checkpoints + old_checkpoints)[:3]
-                
-                # 2. DB 업데이트
-                self.db.update_sync_data(self.temp_neighbor_stats, final_checkpoints)
-                print(f"\n ✅ {new_count}건의 활동 데이터 반영 및 중단점 갱신 완료")
-
-            # [3단계] 랭킹 산출 (항상 실행)
-            stats = self.db.get_all_neighbor_stats()
-            raw_ui_list = []
-            
-            for s in stats:
-                score = (s['total_comments'] * 10) + (s['total_reply'] * 3) + (s['total_likes'] * 1)
-                self.cached_ranking_map[s['nickname']] = {
-                    'c': s['total_comments'], 'r': s['total_reply'], 'l': s['total_likes']
-                }
-                raw_ui_list.append((s['nickname'], {'comment': s['total_comments'], 'reply': s['total_reply'], 'like': s['total_likes'], 'score': score}))
-            
-            ui_list = sorted(raw_ui_list, key=lambda x: x[1]['score'], reverse=True)
-            if self.worker: self.worker.ranking_signal.emit(ui_list)
-            
-            return True
-
-        except Exception as e:
-            print(f"⚠️ [1단계 오류] {e}")
-            return False
 
     def _plan_page_actions(self, items):
         """피드 내 게시글 분석 및 우선순위 계획 수립"""
@@ -303,7 +335,11 @@ class BlogSmartNeighborManagement:
                 break
             idx, action, nick = plan['index'], plan['action'], plan['nickname']
             try: 
-                current_item = items[idx]
+                # 인덱스 유효성 체크
+                if idx < len(items):
+                    current_item = items[idx]
+                else:
+                    continue
             except: 
                 continue
 

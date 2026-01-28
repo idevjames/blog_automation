@@ -24,15 +24,19 @@ class BlogDB:
                 )
             ''')
 
-            # 2. 알림 중단점 관리 (수정됨)
-            # id: nickname_type_content 조합의 고유키
-            # save_date 제거, 컬럼 분리 저장
+            # [2] 스캔 중단점 관리 (변경됨: Key-Value 구조)
+            # 체크포인트 키(key)와 시간값(value)만 저장
+            try:
+                cursor.execute("SELECT value FROM sync_checkpoints LIMIT 0")
+            except sqlite3.OperationalError:
+                # 컬럼이 없다는 에러가 나면 과감히 삭제 (데이터는 어차피 호환 안 됨)
+                cursor.execute("DROP TABLE IF EXISTS sync_checkpoints")
+
+            # [2] 스캔 중단점 관리 (Key-Value 구조로 재생성)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS sync_checkpoints (
-                    id TEXT PRIMARY KEY,
-                    nickname TEXT,
-                    type TEXT,
-                    content TEXT
+                    key TEXT PRIMARY KEY,
+                    value TEXT
                 )
             ''')
 
@@ -76,53 +80,42 @@ class BlogDB:
             ''', (blog_id, nickname, now_str, now_str))
             conn.commit()
 
-    def get_last_checkpoints_details(self, limit=50):
-        """중단점의 상세 데이터(ID, 닉네임, 타입, 내용) 리스트를 가져옵니다."""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                # 결과를 딕셔너리 형태로 받기 위해 row_factory 설정
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("SELECT id, nickname as nick, type, content FROM sync_checkpoints")
-                return [dict(row) for row in cursor.fetchall()]
-        except Exception as e:
-            print(f"❌ [DB] 중단점 상세 로드 오류: {e}")
-            return []
-
-    def get_all_neighbor_stats(self):
-        """모든 이웃 통계 조회"""
+    def get_last_scan_time(self):
+        """sync_checkpoints에서 마지막 스캔 시간을 가져옴"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM neighbor_stats")
-            # 딕셔너리 형태로 반환
-            columns = [desc[0] for desc in cursor.description]
-            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+            cursor.execute("SELECT value FROM sync_checkpoints WHERE key = 'last_scan_time'")
+            row = cursor.fetchone()
+            if row and row[0]:
+                try:
+                    return datetime.strptime(row[0], '%Y-%m-%d %H:%M:%S')
+                except:
+                    return datetime.min
+            return datetime.min # 기록 없으면 아주 옛날(최초 실행)
 
-    def update_sync_data(self, stats_map, checkpoints_list):
-        """분석된 통계 업데이트 및 중단점 갈아치우기"""
+    def update_last_scan_time(self, dt_obj):
+        """현재 스캔 시작 시간을 sync_checkpoints에 저장"""
+        time_str = dt_obj.strftime('%Y-%m-%d %H:%M:%S')
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # 기존 값이 있으면 업데이트, 없으면 삽입
+            cursor.execute('''
+                INSERT INTO sync_checkpoints (key, value) VALUES ('last_scan_time', ?)
+                ON CONFLICT(key) DO UPDATE SET value = ?
+            ''', (time_str, time_str))
+            conn.commit()
+
+    def update_neighbor_stats_only(self, stats_map):
+        """수집된 통계를 DB에 누적 업데이트 (UPSERT)"""
+        if not stats_map: return
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-
-                # 1. 중단점 테이블 초기화 (항상 최신 3개만 유지하기 위해 싹 비움)
-                cursor.execute("DELETE FROM sync_checkpoints")
-                
-                # 2. 새로운 중단점(최대 3개) 삽입
-                for cp in checkpoints_list:
-                    cursor.execute('''
-                        INSERT INTO sync_checkpoints (id, nickname, type, content)
-                        VALUES (?, ?, ?, ?)
-                    ''', (cp['id'], cp['nick'], cp['type'], cp['content']))
-
-                # 3. 이웃 통계 업데이트 (누적 합산)
                 for nick, counts in stats_map.items():
                     likes = counts.get('like', 0)
                     comments = counts.get('comment', 0)
                     replies = counts.get('reply', 0)
-
-                    if likes == 0 and comments == 0 and replies == 0:
-                        continue
-
+                    
                     cursor.execute('''
                         INSERT INTO neighbor_stats (nickname, total_likes, total_comments, total_reply)
                         VALUES (?, ?, ?, ?)
@@ -131,9 +124,29 @@ class BlogDB:
                             total_comments = total_comments + ?,
                             total_reply = total_reply + ?
                     ''', (nick, likes, comments, replies, likes, comments, replies))
-                
+                conn.commit()
+        except Exception as e:
+            print(f"❌ [DB 에러] 통계 업데이트 실패: {e}")
+
+    def get_all_neighbor_stats(self):
+        """랭킹 산정을 위한 통계 전체 조회"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM neighbor_stats")
+            columns = [desc[0] for desc in cursor.description]
+            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def reset_smart_data(self):
+        """[추가] 스마트 이웃 관리 데이터(중단점, 통계) 완전 초기화"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                # 1. 스캔 시점 초기화
+                cursor.execute("DELETE FROM sync_checkpoints")
+                # 2. 통계 데이터 초기화
+                cursor.execute("DELETE FROM neighbor_stats")
                 conn.commit()
             return True
         except Exception as e:
-            print(f"❌ [DB] 데이터 업데이트 오류: {e}")
+            print(f"❌ DB 초기화 실패: {e}")
             return False
