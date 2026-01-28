@@ -95,8 +95,8 @@ if [ $? -eq 0 ]; then
     echo -e "${GREEN}   📂 Output: dist/NaverBlogBot.app             ${NC}"
     echo -e "${GREEN}   📂 UserData: dist/user_data (Clean)          ${NC}"
     echo -e "${BLUE}================================================${NC}"
-    
-    open dist/
+
+    exit 0
 else
     echo -e "${RED}❌ Error occurred during the build process.${NC}"
     exit 1

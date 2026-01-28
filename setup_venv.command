@@ -26,4 +26,3 @@ $PIP_PATH install selenium requests PyQt6 pyinstaller google-genai
 echo "============================================="
 echo "[OK] 설치 완료! 이제 프로그램을 실행할 수 있습니다."
 echo "============================================="
-read -p "엔터를 누르면 종료됩니다..."

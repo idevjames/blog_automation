@@ -79,9 +79,8 @@ if %errorlevel% equ 0 (
     echo    📂 Output: dist\NaverBlogBot.exe
     echo    📂 UserData: dist\user_data (Clean)
     echo ================================================
-    start dist
+    exit /b 0
 ) else (
     echo [ERROR] Build failed.
+    exit /b 1
 )
-
-pause

@@ -25,4 +25,3 @@ echo [INFO] Installing libraries...
 echo =============================================
 echo [OK] Setup Complete!
 echo =============================================
-pause

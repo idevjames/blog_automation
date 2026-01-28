@@ -1,6 +1,5 @@
 name: Build Windows App
 
-# 수동으로 실행(Trigger)할 수 있게 설정
 on:
   workflow_dispatch:
 
@@ -9,32 +8,28 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    # 1. 코드 가져오기
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # 2. 파이썬 3.11 설정
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
         cache: 'pip'
 
-    # 3. 의존성 설치 및 빌드 스크립트 실행
     - name: Install dependencies & Build
       run: |
         python -m pip install --upgrade pip
-        ./build_windows.bat
+        # [수정됨] 파일명을 변경한 것에 맞춰서 실행 명령어도 수정
+        cmd /c build_windows.bat
 
-    # 4. 결과물 압축 (dist/BlogAutoBot 폴더를 zip으로)
     - name: Zip Build Output
       run: |
-        Compress-Archive -Path dist/BlogAutoBot -DestinationPath blog_automation_windows.zip
+        Compress-Archive -Path dist/NaverBlogBot/* -DestinationPath blog_automation_windows.zip
 
-    # 5. 아티팩트 업로드 (사용자가 다운로드할 수 있게)
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: blog_automation_windows
         path: blog_automation_windows.zip
-        retention-days: 5  # 파일 보관 기간 (일)
+        retention-days: 5
