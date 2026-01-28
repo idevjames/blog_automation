@@ -121,7 +121,7 @@ def human_scroll_to_ratio(driver, scroll_ratio):
             step = int(remaining)
             
         # 위에서 만든 물리 스크롤 호출
-        human_scroll(driver, step)
+        human_scroll_distance(driver, step)
         
         current_pos = driver.execute_script("return window.pageYOffset")
         remaining = target_position - current_pos
