@@ -21,7 +21,7 @@ echo "[INFO] pip 업그레이드 중..."
 $PYTHON_PATH -m pip install --upgrade pip
 
 echo "[INFO] 라이브러리 설치 중 (google-genai 버전)..."
-$PIP_PATH install selenium requests PyQt6 pyinstaller google-genai
+$PIP_PATH install selenium requests PyQt6 pyinstaller google-genai webdriver-manager
 
 echo "============================================="
 echo "[OK] 설치 완료! 이제 프로그램을 실행할 수 있습니다."

@@ -20,7 +20,7 @@ secho [INFO] Upgrading pip...
 "%PYTHON_PATH%" -m pip install --upgrade pip
 
 echo [INFO] Installing libraries...
-"%PIP_PATH%" install selenium requests PyQt6 pyinstaller google-genai
+"%PIP_PATH%" install selenium requests PyQt6 pyinstaller google-genai webdriver-manager
 
 echo =============================================
 echo [OK] Setup Complete!

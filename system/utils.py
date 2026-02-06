@@ -10,22 +10,7 @@ def smart_sleep(range_tuple, reason):
     min_sec, max_sec = range_tuple
     wait_time = random.uniform(min_sec, max_sec)
     
-    exclude_reasons = [
-        "메시지 작성 후 검토 대기", 
-        "최종 신청 전송 완료 대기",
-        "공감/댓글 영역 노출을 위한 스크롤 대기",
-        "공감 클릭 전 망설임 대기",
-        "공감 완료 후 댓글 작성 전 휴식",
-        "댓글 입력창 가시성 대기",
-        "공감 버튼 클릭 전 실제 사람처럼 대기",
-        "공감 처리 결과가 서버에 반영되는지 확인 중"
-    ]
-    
-    # 사유 출력
-    if reason and reason not in exclude_reasons:
-        # 너무 짧은 대기는 로그 생략 가능
-        if wait_time > 0.5:
-            print(f"   (⏳ {reason}: {wait_time:.2f}초...)")
+    print(f"   (⏳ {reason}: {wait_time:.2f}초...)")
 
     # [핵심] 통으로 time.sleep을 쓰면 중단 반응이 느려지므로
     # 0.1초 단위로 쪼개서 대기 (GUI 프리징 없음 + 발열 방지)
@@ -115,7 +100,6 @@ def human_scroll_to_ratio(driver, scroll_ratio):
     remaining = target_position - current_pos
     
     while remaining > 0:
-        # 한 번에 굴릴 양 (300~600 사이 랜덤)
         step = random.randint(500, 1000)
         if step > remaining:
             step = int(remaining)
