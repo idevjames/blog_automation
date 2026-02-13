@@ -7,8 +7,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 import config
-from utils import smart_sleep, smart_click, human_typing
-from utils import human_scroll_to_ratio
+from ____utils import smart_sleep, smart_click, human_typing
+from ____utils import human_scroll_to_ratio
 
 class BlogAddNeighbor:
     def __init__(self, driver):

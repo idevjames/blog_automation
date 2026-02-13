@@ -8,9 +8,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import WebDriverException
-
-# [필수] utils에서 smart_sleep 임포트
-from utils import smart_sleep
+from utils.smart_util import smart_sleep
 
 class LoginSessionService:
     _instance: Optional['LoginSessionService'] = None

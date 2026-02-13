@@ -7,7 +7,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 import config
-from utils import smart_sleep, smart_click, human_scroll_element
+from ____utils import smart_sleep, smart_click, human_scroll_element
 
 class BlogLikesNeighbor:
     def __init__(self, driver):

@@ -9,7 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from ai_helper import GeminiHelper
 from bot_class.db_manager import BlogDB
 import config
-from utils import human_scroll_distance, human_scroll_element, smart_sleep, smart_click, human_typing
+from ____utils import human_scroll_distance, human_scroll_element, smart_sleep, smart_click, human_typing
 
 class BlogSmartNeighborManagement:
     def __init__(self, driver):

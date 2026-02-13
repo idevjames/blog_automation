@@ -5,7 +5,7 @@ import time
 import config
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from utils import smart_sleep
+from ____utils import smart_sleep
 
 class NaverSessionManager:
     def __init__(self):

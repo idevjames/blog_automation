@@ -44,7 +44,7 @@ class Logger:
         - 작업 시작/종료, 에러, 제한 도달 등 알림이 필요한 경우 (Notice/Error 성격)
         """
         # 1. 일반 출력 (터미널+GUI) 포함
-        self.print(f"✴️✴️ {message}")
+        self.print(f"✴️ {message}")
 
         # 2. 텔레그램 전송
         if self.tg_callback:
